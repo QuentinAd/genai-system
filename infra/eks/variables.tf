@@ -4,6 +4,11 @@ variable "project_name" {
   type        = string
 }
 
+variable "environment" {
+  description = "Environment for the EKS cluster (e.g., dev, prod)"
+  type        = string
+}
+
 variable "vpc_id" {
   description = "VPC ID to launch EKS in"
   type        = string

@@ -4,7 +4,7 @@ module "eks" {
   version         = "21.0.4"
 
   name    = "${var.project_name}-eks"
-  kubernetes_version = "1.29"
+  kubernetes_version = "1.31"
   subnet_ids      = var.subnet_ids
   vpc_id          = var.vpc_id
 
@@ -21,7 +21,7 @@ module "eks" {
   enable_irsa = true
 
   tags = {
-    Environment = "dev"
+    Environment = var.environment
     Project     = var.project_name
   }
 }
