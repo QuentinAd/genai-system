@@ -1,5 +1,14 @@
-.venv
+# local env and data
 .env
 data
+
+# python
+.venv
+__pycache__
+
+# linting
+.ruff_cache
+
+# infra
 .terraform*
 terraform.*
