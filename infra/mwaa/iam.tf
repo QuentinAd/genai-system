@@ -1,4 +1,3 @@
-
 resource "aws_iam_role" "mwaa_exec" {
   name = "${var.project_name}-mwaa-exec"
   assume_role_policy = data.aws_iam_policy_document.mwaa_trust.json
@@ -6,10 +5,11 @@ resource "aws_iam_role" "mwaa_exec" {
 
 data "aws_iam_policy_document" "mwaa_trust" {
   statement {
+    effect = "Allow"
     actions = ["sts:AssumeRole"]
     principals {
       type        = "Service"
-      identifiers = ["airflow.amazonaws.com"]
+      identifiers = ["airflow-env.amazonaws.com"]
     }
   }
 }
