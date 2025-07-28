@@ -114,9 +114,9 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Install kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
-          version: '1.30.0'
+          version: 'latest'
 
       - name: Update kubeconfig
         run: |
