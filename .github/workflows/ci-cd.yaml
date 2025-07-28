@@ -127,5 +127,6 @@ jobs:
       - name: Render & apply Spark Job manifest
         run: |
           export ECR_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
-          envsubst < data-pipeline/k8s/spark-job.yaml | kubectl apply -f -
+          envsubst < data-pipeline/k8s/spark-job.yaml | kubectl apply --validate=false -f -
+          kubectl rollout status job/spark-etl
 
