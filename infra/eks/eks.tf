@@ -3,7 +3,7 @@ module "eks" {
   version         = "21.0.4"
 
   name    = "${var.project_name}-eks"
-  kubernetes_version = "1.30"
+  kubernetes_version = "1.32"
   subnet_ids      = var.subnet_ids
   vpc_id          = var.vpc_id
 

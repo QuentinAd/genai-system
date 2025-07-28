@@ -25,4 +25,5 @@ with DAG(
         arguments=["/app/etl_job.py"],
         get_logs=True,
         is_delete_operator_pod=True,
+        service_account_name="spark-runner",
     )
