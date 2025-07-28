@@ -35,7 +35,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r data-pipeline/requirements.txt ruff pytest
+          pip install -r data-pipeline/requirements.txt
 
       - name: Lint with Ruff
         run: ruff check .
@@ -67,7 +67,7 @@ jobs:
             -t $ECR_REPO:$IMAGE_TAG \
             -f data-pipeline/docker/Dockerfile \
             --push  \
-            271111372751.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
+            $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
 
   # ──────────────────────────────────────────────
   # 2) Sync Airflow DAGs to MWAA S3 Bucket
