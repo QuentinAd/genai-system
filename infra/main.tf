@@ -15,6 +15,11 @@ module "eks" {
   environment  = var.environment
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnet_ids # for control-plane + nodes
+
+  depends_on = [
+    aws_nat_gateway.nat_a,
+    aws_nat_gateway.nat_b,
+  ]
 }
 
 module "mwaa" {
@@ -25,11 +30,15 @@ module "mwaa" {
   private_subnets  = module.vpc.private_subnet_ids # to live in private subnets
   dags_bucket_name = module.s3_data.dags_bucket_name
   data_bucket_name = module.s3_data.data_bucket_name
+
+  depends_on = [
+    aws_nat_gateway.nat_a,
+    aws_nat_gateway.nat_b,
+  ]
 }
 
 module "ecr" {
-  source       =
-   "./ecr"
+  source       = "./ecr"
   project_name = var.project_name
   ecr_repo     = "spark-etl"
 }

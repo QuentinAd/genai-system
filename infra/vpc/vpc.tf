@@ -48,6 +48,9 @@ resource "aws_subnet" "private_a" {
     "kubernetes.io/role/internal-elb" = "1"
     "kubernetes.io/cluster/${local.name}-eks" = "shared"
   }
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_subnet" "private_b" {
@@ -58,6 +61,9 @@ resource "aws_subnet" "private_b" {
     Name = "${local.name}-private-b"
     "kubernetes.io/role/internal-elb" = "1"
     "kubernetes.io/cluster/${local.name}-eks" = "shared"
+  }
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -95,6 +101,9 @@ resource "aws_nat_gateway" "nat_a" {
   allocation_id = aws_eip.nat_a.id
   subnet_id     = aws_subnet.public_a.id
   tags          = { Name = "${local.name}-nat-a" }
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_eip" "nat_b" { domain = "vpc" }
@@ -102,6 +111,9 @@ resource "aws_nat_gateway" "nat_b" {
   allocation_id = aws_eip.nat_b.id
   subnet_id     = aws_subnet.public_b.id
   tags          = { Name = "${local.name}-nat-b" }
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_route_table" "private_a" {
