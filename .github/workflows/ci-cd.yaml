@@ -11,9 +11,10 @@ env:
   ECR_REPO: spark-etl
   IMAGE_TAG: latest
 
+
 jobs:
   # ──────────────────────────────────────────────
-  # 1) Build / Lint / Test / Push Docker Image
+  # Build / Lint / Test / Push Docker Image
   # ──────────────────────────────────────────────
   build:
     name: Build & Push Spark Image
@@ -73,7 +74,7 @@ jobs:
             data-pipeline
 
   # ──────────────────────────────────────────────
-  # 2) Sync Airflow DAGs to MWAA S3 Bucket
+  # Sync Airflow DAGs to MWAA S3 Bucket
   # ──────────────────────────────────────────────
   deploy-dags:
     name: Deploy DAGs to MWAA
@@ -94,46 +95,9 @@ jobs:
           aws s3 sync data-pipeline/dags s3://${{ secrets.MWAA_DAGS_BUCKET }}/dags \
             --delete
 
-  # ──────────────────────────────────────────────
-  # 3) Terraform: Plan & Apply Infra
-  # ──────────────────────────────────────────────
-  infra:
-    name: Terraform Apply
-    runs-on: ubuntu-latest
-    needs: deploy-dags
-    defaults:
-      run:
-        working-directory: infra
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.7
-          
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Terraform Init
-        run: terraform init -input=false
-
-
-      - name: Terraform Validate & Plan
-        run: |
-          terraform validate
-          terraform plan -out=tfplan
-
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -input=false tfplan
 
   # ──────────────────────────────────────────────
-  # 4) Deploy Spark ETL Job to EKS
+  # Deploy Spark ETL Job to EKS
   # ──────────────────────────────────────────────
   deploy-etl:
     name: Deploy Spark ETL to EKS
