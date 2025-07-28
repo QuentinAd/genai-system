@@ -67,10 +67,10 @@ jobs:
         run: |
           docker buildx build \
             --platform linux/amd64 \
-            -t $ECR_REPO:$IMAGE_TAG \
+            -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG} \
             -f data-pipeline/docker/Dockerfile \
-            --push  \
-            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
+            --push \
+            data-pipeline/docker
 
   # ──────────────────────────────────────────────
   # 2) Sync Airflow DAGs to MWAA S3 Bucket
