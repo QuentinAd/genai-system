@@ -59,6 +59,9 @@ jobs:
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
+        with :
+          mask-password: true
+
 
       - name: Build and Push Docker image
         run: |
