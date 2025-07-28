@@ -35,6 +35,12 @@ jobs:
     - name: Run tests
       run: |
         pytest
+        
+    - name: Upload test logs
+      uses: actions/upload-artifact@v3
+      with:
+        name: pytest-results
+        path: ./pytest.log
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
