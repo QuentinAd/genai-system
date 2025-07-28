@@ -27,6 +27,13 @@ module "mwaa" {
   data_bucket_name = module.s3_data.data_bucket_name
 }
 
+module "ecr" {
+  source       =
+   "./ecr"
+  project_name = var.project_name
+  ecr_repo     = "spark-etl"
+}
+
 # Outputs (handy for CI/CD, kubeconfig, etc.)
 output "vpc_id" { value = module.vpc.vpc_id }
 output "private_subnet_ids" { value = module.vpc.private_subnet_ids }
