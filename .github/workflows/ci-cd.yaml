@@ -67,7 +67,7 @@ jobs:
             -t $ECR_REPO:$IMAGE_TAG \
             -f data-pipeline/docker/Dockerfile \
             --push  \
-            $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG
 
   # ──────────────────────────────────────────────
   # 2) Sync Airflow DAGs to MWAA S3 Bucket
