@@ -16,10 +16,7 @@ module "eks" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnet_ids # for control-plane + nodes
 
-  depends_on = [
-    aws_nat_gateway.nat_a,
-    aws_nat_gateway.nat_b,
-  ]
+  depends_on = [ module.vpc ]
 }
 
 module "mwaa" {
@@ -31,10 +28,7 @@ module "mwaa" {
   dags_bucket_name = module.s3_data.dags_bucket_name
   data_bucket_name = module.s3_data.data_bucket_name
 
-  depends_on = [
-    aws_nat_gateway.nat_a,
-    aws_nat_gateway.nat_b,
-  ]
+  depends_on = [ module.vpc ]
 }
 
 module "ecr" {

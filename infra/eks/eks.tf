@@ -16,13 +16,6 @@ module "eks" {
       instance_types = ["t3.medium"]
       iam_role_arn   = aws_iam_role.eks_node.arn
     }
-  
-  lifecycle {
-    # ignore manual changes to desired_size
-    ignore_changes = [
-      "scaling_config.0.desired_size",
-    ]
-  }
   }
 
   enable_irsa = true

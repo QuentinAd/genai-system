@@ -1,12 +1,8 @@
-provider "aws" { region = var.aws_region }
-
-locals { name = var.project_name }
-
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
-  tags = { Name = "${local.name}-vpc" }
+  tags = { Name = "${var.project_name}-vpc" }
 }
 
 # ────────────────────────────
@@ -18,9 +14,9 @@ resource "aws_subnet" "public_a" {
   availability_zone       = "${var.aws_region}a"
   map_public_ip_on_launch = true
   tags = {
-    Name = "${local.name}-public-a"
+    Name = "${var.project_name}-public-a"
     "kubernetes.io/role/elb" = "1"
-    "kubernetes.io/cluster/${local.name}-eks" = "shared"
+    "kubernetes.io/cluster/${var.project_name}-eks" = "shared"
   }
 }
 
@@ -30,9 +26,9 @@ resource "aws_subnet" "public_b" {
   availability_zone       = "${var.aws_region}b"
   map_public_ip_on_launch = true
   tags = {
-    Name = "${local.name}-public-b"
+    Name = "${var.project_name}-public-b"
     "kubernetes.io/role/elb" = "1"
-    "kubernetes.io/cluster/${local.name}-eks" = "shared"
+    "kubernetes.io/cluster/${var.project_name}-eks" = "shared"
   }
 }
 
@@ -44,9 +40,9 @@ resource "aws_subnet" "private_a" {
   cidr_block        = var.private_cidr_az1
   availability_zone = "${var.aws_region}a"
   tags = {
-    Name = "${local.name}-private-a"
+    Name = "${var.project_name}-private-a"
     "kubernetes.io/role/internal-elb" = "1"
-    "kubernetes.io/cluster/${local.name}-eks" = "shared"
+    "kubernetes.io/cluster/${var.project_name}-eks" = "shared"
   }
   lifecycle {
     create_before_destroy = true
@@ -58,9 +54,9 @@ resource "aws_subnet" "private_b" {
   cidr_block        = var.private_cidr_az2
   availability_zone = "${var.aws_region}b"
   tags = {
-    Name = "${local.name}-private-b"
+    Name = "${var.project_name}-private-b"
     "kubernetes.io/role/internal-elb" = "1"
-    "kubernetes.io/cluster/${local.name}-eks" = "shared"
+    "kubernetes.io/cluster/${var.project_name}-eks" = "shared"
   }
   lifecycle {
     create_before_destroy = true
@@ -72,7 +68,7 @@ resource "aws_subnet" "private_b" {
 # ────────────────────────────
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
-  tags   = { Name = "${local.name}-igw" }
+  tags   = { Name = "${var.project_name}-igw" }
 }
 
 resource "aws_route_table" "public" {
@@ -81,7 +77,7 @@ resource "aws_route_table" "public" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw.id 
     }
-  tags   = { Name = "${local.name}-public-rt" }
+  tags   = { Name = "${var.project_name}-public-rt" }
 }
 
 resource "aws_route_table_association" "public_a" {
@@ -100,7 +96,7 @@ resource "aws_eip" "nat_a" { domain = "vpc" }
 resource "aws_nat_gateway" "nat_a" {
   allocation_id = aws_eip.nat_a.id
   subnet_id     = aws_subnet.public_a.id
-  tags          = { Name = "${local.name}-nat-a" }
+  tags          = { Name = "${var.project_name}-nat-a" }
   lifecycle {
     create_before_destroy = true
   }
@@ -110,7 +106,7 @@ resource "aws_eip" "nat_b" { domain = "vpc" }
 resource "aws_nat_gateway" "nat_b" {
   allocation_id = aws_eip.nat_b.id
   subnet_id     = aws_subnet.public_b.id
-  tags          = { Name = "${local.name}-nat-b" }
+  tags          = { Name = "${var.project_name}-nat-b" }
   lifecycle {
     create_before_destroy = true
   }
@@ -122,7 +118,7 @@ resource "aws_route_table" "private_a" {
     cidr_block = "0.0.0.0/0" 
     nat_gateway_id = aws_nat_gateway.nat_a.id
     }
-  tags = { Name = "${local.name}-private-rt-a" }
+  tags = { Name = "${var.project_name}-private-rt-a" }
 }
 resource "aws_route_table" "private_b" {
   vpc_id = aws_vpc.main.id
@@ -130,7 +126,7 @@ resource "aws_route_table" "private_b" {
     cidr_block = "0.0.0.0/0" 
     nat_gateway_id = aws_nat_gateway.nat_b.id
     }
-  tags = { Name = "${local.name}-private-rt-b" }
+  tags = { Name = "${var.project_name}-private-rt-b" }
 }
 
 resource "aws_route_table_association" "private_a" {
