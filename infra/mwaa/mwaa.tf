@@ -1,4 +1,3 @@
-
 resource "aws_mwaa_environment" "mwaa" {
   name = "${var.project_name}-airflow"
 
@@ -15,6 +14,7 @@ resource "aws_mwaa_environment" "mwaa" {
   network_configuration {
     security_group_ids = [aws_security_group.mwaa_sg.id]
     subnet_ids = var.private_subnets
+
   }
 
   logging_configuration {
