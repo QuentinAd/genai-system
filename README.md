@@ -49,9 +49,12 @@ The `data-pipeline` service includes a DAG to run a PySpark job either inside Do
 # Build the Spark image used by the DAG
 docker compose build spark
 
-# Start Postgres and Airflow (web UI on http://localhost:8080)
-docker compose up postgres airflow
+# Start Airflow (web UI on http://localhost:8080)
+docker compose up airflow-init && docker compose up
 ```
+
+The Airflow web UI is available at `http://localhost:8080` and uses the default
+credentials `admin` / `admin`.
 
 The DAG `etl_csv_to_parquet_k8s` will run the Spark job using `DockerOperator` when the `LOCAL_AIRFLOW` environment variable is set.
 
