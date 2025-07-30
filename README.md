@@ -49,8 +49,8 @@ The `data-pipeline` service includes a DAG to run a PySpark job either inside Do
 # Build the Spark image used by the DAG
 docker compose build spark
 
-# Start Postgres and Airflow (web UI on http://localhost:8080)
-docker compose up postgres airflow
+# Start Airflow (web UI on http://localhost:8080)
+docker compose up airflow-init && docker compose up
 ```
 
 The Airflow web UI is available at `http://localhost:8080` and uses the default
