@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  spark:
+    build:
+      context: ./data-pipeline
+      dockerfile: docker/Dockerfile
+    image: spark-etl:local
+
+  airflow:
+    image: apache/airflow:2.7.2
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      LOCAL_AIRFLOW: "true"
+    volumes:
+      - ./data-pipeline/dags:/opt/airflow/dags
+      - ./data-pipeline/spark_jobs:/opt/airflow/spark_jobs
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8080:8080"
+    command: airflow standalone
