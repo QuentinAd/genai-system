@@ -24,7 +24,7 @@ async def test_dummy_chatbot_stream():
 
 @pytest.mark.asyncio
 async def test_fetch_status():
-    async def handler(request: httpx.Request) -> httpx.Response:  # type: ignore
+    async def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200)
 
     transport = httpx.MockTransport(handler)
