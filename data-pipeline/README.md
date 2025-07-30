@@ -16,6 +16,11 @@ docker compose up postgres airflow
 
 The DAG `etl_csv_to_parquet_k8s` will run the Spark job using `DockerOperator` when the `LOCAL_AIRFLOW` environment variable is set (configured in `docker-compose.yaml`).
 
+## Kubernetes Job
+The `helm/` chart also includes a `Job` manifest for running the Spark ETL on a
+Kubernetes cluster. Provide the appropriate container image with the
+`sparkJob.image` value when installing the chart.
+
 ## PDF to FAISS Example
 
 An additional DAG `pdf_to_faiss` demonstrates creating OpenAI embeddings from a PDF

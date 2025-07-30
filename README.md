@@ -77,3 +77,17 @@ terraform validate
 terraform plan
 ```
 
+## Kubernetes Deployment with Helm
+Helm charts to deploy the backend service and Spark ETL job reside in the
+`helm/` directory. Install them on your Kubernetes cluster with:
+
+```bash
+helm install genai ./helm \
+  --set backend.image=<backend_image> \
+  --set sparkJob.image=<spark_image>
+```
+
+Adjust the image values to match your container registry. The chart provisions a
+`Deployment` and `Service` for the backend as well as a `Job` for the Spark
+workload.
+

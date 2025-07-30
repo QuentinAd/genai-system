@@ -1,0 +1,13 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spark-etl
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      serviceAccountName: spark-runner
+      containers:
+        - name: spark-etl
+          image: {{ .Values.sparkJob.image }}
+      restartPolicy: Never
