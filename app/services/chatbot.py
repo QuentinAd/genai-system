@@ -4,7 +4,7 @@ import asyncio
 from typing import AsyncGenerator
 
 import httpx
-from langchain_community.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage
 
 

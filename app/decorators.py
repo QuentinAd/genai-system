@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import request, jsonify
+from quart import jsonify, request
 
 
 def validate(model):
@@ -9,7 +9,7 @@ def validate(model):
         @wraps(func)
         async def wrapper(*args, **kwargs):
             try:
-                data = model(**request.get_json(force=True))
+                data = model(**(await request.get_json(force=True)))
             except Exception as exc:  # pragma: no cover - simple example
                 return jsonify({"error": str(exc)}), 400
             return await func(data, *args, **kwargs)

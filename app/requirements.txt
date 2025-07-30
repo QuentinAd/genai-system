@@ -1,6 +1,8 @@
-flask>=2.3
+quart>=0.19
+uvicorn>=0.29
 httpx>=0.25
 langchain>=0.1
+langchain-openai>=0.1
 langchain-community>=0.0.21
 openai>=1.0
 pydantic>=2.0
