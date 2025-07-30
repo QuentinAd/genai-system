@@ -1,4 +1,4 @@
-from flask import Blueprint, Response, current_app
+from quart import Blueprint, Response, current_app
 
 from .decorators import log_call, validate
 from .schema import ChatInput
