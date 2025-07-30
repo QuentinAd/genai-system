@@ -7,7 +7,7 @@ RUN pip install pandas boto3 pyarrow s3fs
 ENV PYSPARK_PYTHON=python3
 ENV PYSPARK_DRIVER_PYTHON=python3
 
-COPY dags/etl_job.py /app/etl_job.py
+COPY spark_jobs/etl_csv_to_parquet_k8s.py /app/etl_job.py
 WORKDIR /app
 
 ENTRYPOINT ["spark-submit", "etl_job.py"]
