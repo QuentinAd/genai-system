@@ -4,8 +4,12 @@ import asyncio
 from typing import AsyncGenerator
 
 import httpx
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.schema import HumanMessage
+from langchain_community.vectorstores import FAISS
+from langchain.tools.retriever import create_retriever_tool
+from langchain.memory import ConversationBufferMemory
+from langchain.agents import AgentExecutor, create_openai_functions_agent
 
 
 class ChatBotBase:
@@ -67,3 +71,34 @@ class DummyChatBot(ChatBotBase):
         for word in message.split():
             yield word
             await asyncio.sleep(0)
+
+
+def load_faiss_retriever_tool(index_path: str, embeddings: OpenAIEmbeddings):
+    """Return a LangChain tool that searches the FAISS index."""
+    vectorstore = FAISS.load_local(
+        index_path,
+        embeddings,
+        allow_dangerous_deserialization=True,
+    )
+    retriever = vectorstore.as_retriever()
+    return create_retriever_tool(
+        retriever,
+        "faiss_search",
+        "Searches documents indexed in FAISS",
+    )
+
+
+class RAGChatBot(OpenAIChatBot):
+    """Chatbot that uses tool calling with a FAISS retriever and conversation memory."""
+
+    def __init__(self, index_path: str, **kwargs) -> None:
+        super().__init__(**kwargs)
+        embeddings = OpenAIEmbeddings()
+        tool = load_faiss_retriever_tool(index_path, embeddings)
+        memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+        agent = create_openai_functions_agent(self.llm, [tool], memory)
+        self.executor = AgentExecutor(agent=agent, tools=[tool], memory=memory)
+
+    async def stream_chat(self, message: str) -> AsyncGenerator[str, None]:
+        result = await self.executor.ainvoke({"input": message})
+        yield result.get("output", "")
