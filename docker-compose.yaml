@@ -29,6 +29,8 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       LOCAL_AIRFLOW: "true"
+      AIRFLOW__CORE__FERNET_KEY: "Givf721ENayHTpt2WnWs1-w_UPZlPst_kOFy0Fx8pmo="
+      AIRFLOW__WEBSERVER__SECRET_KEY: "supersecretkey"
     volumes:
       - ./data-pipeline/dags:/opt/airflow/dags
       - ./data-pipeline/spark_jobs:/opt/airflow/spark_jobs
@@ -40,7 +42,16 @@ services:
         condition: service_healthy
     ports:
       - "8080:8080"
-    command: airflow standalone
+    command: >
+      bash -c "airflow db upgrade && \
+      airflow users create \
+        --username admin \
+        --password admin \
+        --firstname Admin \
+        --lastname User \
+        --role Admin \
+        --email admin@example.com --force && \
+      airflow scheduler & airflow webserver"
 
   app:
     build:

@@ -53,6 +53,9 @@ docker compose build spark
 docker compose up postgres airflow
 ```
 
+The Airflow web UI is available at `http://localhost:8080` and uses the default
+credentials `admin` / `admin`.
+
 The DAG `etl_csv_to_parquet_k8s` will run the Spark job using `DockerOperator` when the `LOCAL_AIRFLOW` environment variable is set.
 
 ## Tests and Linting
