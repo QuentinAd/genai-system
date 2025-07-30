@@ -11,7 +11,7 @@ default_args = {
 
 with DAG(
     "etl_csv_to_parquet_k8s",
-    schedule_interval=None,
+    schedule=None,
     catchup=False,
     default_args=default_args,
     description="Run PySpark ETL",

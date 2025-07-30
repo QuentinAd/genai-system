@@ -8,7 +8,7 @@ DEFAULT_ARGS = {"start_date": datetime(2025, 1, 1), "retries": 0}
 
 with DAG(
     "pdf_to_faiss",
-    schedule_interval=None,
+    schedule=None,
     catchup=False,
     default_args=DEFAULT_ARGS,
     description="Create FAISS index from PDF",
