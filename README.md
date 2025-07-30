@@ -24,7 +24,15 @@ For the data pipeline you will also need Docker and Docker Compose.
 The backend exposes a single `/chat` route that streams tokens from an LLM. It can be started locally using Gunicorn:
 
 ```bash
-gunicorn -k uvicorn.workers.UvicornWorker app.main:app
+gunicorn -k uvicorn.workers.UvicornWorker \
+    -b 0.0.0.0:8000 app.main:app
+```
+
+Alternatively build and run the Docker image:
+
+```bash
+docker build -f app/Dockerfile -t app .
+docker run -p 8000:8000 --env-file .env app
 ```
 
 Send a message via:
