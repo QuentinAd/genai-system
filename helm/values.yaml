@@ -1,0 +1,6 @@
+backend:
+  image: genai-app:latest
+  replicaCount: 1
+  servicePort: 8000
+sparkJob:
+  image: spark-etl:latest
