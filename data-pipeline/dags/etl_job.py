@@ -1,19 +1,8 @@
 from airflow import DAG
-import os
-
-try:  # Airflow 2.x provider package
-    from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import (
-        KubernetesPodOperator,
-    )
-except Exception:  # pragma: no cover - provider not installed
-    try:  # Airflow 1.10 fallback
-        from airflow.contrib.operators.kubernetes_pod_operator import (
-            KubernetesPodOperator,
-        )
-    except Exception:  # pragma: no cover - no Kubernetes support
-        KubernetesPodOperator = None  # type: ignore[misc]
+from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 from airflow.providers.docker.operators.docker import DockerOperator
 from datetime import datetime
+import os
 
 default_args = {
     "start_date": datetime(2025, 1, 1),
@@ -37,9 +26,6 @@ with DAG(
             network_mode="bridge",
         )
     else:
-        if KubernetesPodOperator is None:
-            raise RuntimeError("KubernetesPodOperator not available")
-
         run_spark = KubernetesPodOperator(
             task_id="run_spark_job",
             name="spark-etl-job",

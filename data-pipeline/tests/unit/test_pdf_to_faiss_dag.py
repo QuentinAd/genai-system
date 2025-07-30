@@ -3,11 +3,7 @@ import pytest
 try:
     from airflow.models import DagBag
     from airflow.providers.docker.operators.docker import DockerOperator
-
-    try:
-        from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
-    except Exception:
-        from airflow.contrib.operators.kubernetes_pod_operator import KubernetesPodOperator
+    from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 except Exception:  # pragma: no cover - Airflow optional
     DAG_AVAILABLE = False
 else:
