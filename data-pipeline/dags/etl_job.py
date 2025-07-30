@@ -40,4 +40,3 @@ with DAG(
             is_delete_operator_pod=True,
             service_account_name="spark-runner",
         )
-

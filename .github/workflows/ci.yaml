@@ -21,7 +21,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('data-pipeline/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('data-pipeline/requirements.txt', 'app/requirements.txt') }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -31,6 +31,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r data-pipeline/requirements.txt
+          pip install -r app/requirements.txt
 
       - name: Lint with Ruff
         run: ruff check .
