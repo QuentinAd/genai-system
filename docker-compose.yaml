@@ -16,7 +16,17 @@ services:
     volumes:
       - ./data-pipeline/dags:/opt/airflow/dags
       - ./data-pipeline/spark_jobs:/opt/airflow/spark_jobs
+      - ./data-pipeline/scripts:/opt/airflow/scripts
+      - ./data-pipeline/data:/opt/airflow/data
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8080:8080"
     command: airflow standalone
+
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    image: genai-app:local
+    ports:
+      - "8000:8000"

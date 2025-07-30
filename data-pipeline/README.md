@@ -15,3 +15,9 @@ docker compose up airflow
 ```
 
 The DAG `etl_csv_to_parquet_k8s` will run the Spark job using `DockerOperator` when the `LOCAL_AIRFLOW` environment variable is set (configured in `docker-compose.yaml`).
+
+## PDF to FAISS Example
+
+An additional DAG `pdf_to_faiss` demonstrates creating OpenAI embeddings from a PDF
+and storing them in a FAISS index. The sample PDF should be placed in
+`data-pipeline/data/input.pdf` before running the DAG.
