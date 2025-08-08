@@ -7,7 +7,7 @@ from pathlib import Path
 
 def test_infrastructure_workflow_exports_outputs():
     """Test that infrastructure workflow exports Terraform outputs."""
-    workflows_dir = Path(__file__).parent.parent.parent / ".github" / "workflows"
+    workflows_dir = Path(__file__).parent.parent / ".github" / "workflows"
     infra_workflow = workflows_dir / "infrastructure.yaml"
     
     assert infra_workflow.exists(), "infrastructure.yaml workflow should exist"
@@ -37,7 +37,7 @@ def test_infrastructure_workflow_exports_outputs():
 
 def test_cd_workflow_uses_helm():
     """Test that CD workflow uses Helm for deployment."""
-    workflows_dir = Path(__file__).parent.parent.parent / ".github" / "workflows"
+    workflows_dir = Path(__file__).parent.parent / ".github" / "workflows"
     cd_workflow = workflows_dir / "cd.yaml"
     
     assert cd_workflow.exists(), "cd.yaml workflow should exist"
@@ -72,7 +72,7 @@ def test_cd_workflow_uses_helm():
 
 def test_cd_workflow_builds_both_images():
     """Test that CD workflow builds both backend and Spark images."""
-    workflows_dir = Path(__file__).parent.parent.parent / ".github" / "workflows"
+    workflows_dir = Path(__file__).parent.parent / ".github" / "workflows"
     cd_workflow = workflows_dir / "cd.yaml"
     
     with open(cd_workflow, 'r') as f:
@@ -99,7 +99,7 @@ def test_cd_workflow_builds_both_images():
 
 def test_workflows_have_proper_triggers():
     """Test that workflows have appropriate triggers."""
-    workflows_dir = Path(__file__).parent.parent.parent / ".github" / "workflows"
+    workflows_dir = Path(__file__).parent.parent / ".github" / "workflows"
     
     # Test infrastructure workflow
     with open(workflows_dir / "infrastructure.yaml", 'r') as f:
@@ -123,7 +123,7 @@ def test_workflows_have_proper_triggers():
 
 def test_ci_workflow_unchanged():
     """Test that CI workflow still works for basic validation."""
-    workflows_dir = Path(__file__).parent.parent.parent / ".github" / "workflows"
+    workflows_dir = Path(__file__).parent.parent / ".github" / "workflows"
     ci_workflow = workflows_dir / "ci.yaml"
     
     assert ci_workflow.exists(), "ci.yaml workflow should exist"
