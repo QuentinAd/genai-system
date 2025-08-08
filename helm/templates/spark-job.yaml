@@ -1,13 +1,28 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: spark-etl
+  name: {{ .Chart.Name }}-spark-etl
+  labels:
+    app: {{ .Chart.Name }}-spark-etl
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
 spec:
   backoffLimit: 2
   template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}-spark-etl
+        release: {{ .Release.Name }}
     spec:
       serviceAccountName: spark-runner
       containers:
         - name: spark-etl
           image: {{ .Values.sparkJob.image }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Chart.Name }}-config
+            - secretRef:
+                name: {{ .Chart.Name }}-secrets
+          resources:
+            {{- toYaml .Values.sparkJob.resources | nindent 12 }}
       restartPolicy: Never
