@@ -1,0 +1,28 @@
+# Pre-commit configuration for this repository
+# - Uses Ruff for formatting and linting (configured in pyproject.toml)
+# - Adds a few basic hygiene hooks
+
+minimum_pre_commit_version: "2.20.0"
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Keep in sync occasionally with `pre-commit autoupdate`
+    rev: v0.6.3
+    hooks:
+      # Format first, then lint
+      - id: ruff-format
+      - id: ruff
+        args:
+          - --fix
+          - --exit-non-zero-on-fix
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ["--maxkb=1000"]
