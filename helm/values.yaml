@@ -1,6 +1,33 @@
 backend:
-  image: genai-app:latest
+  image: "BACKEND_IMAGE_PLACEHOLDER"
   replicaCount: 1
   servicePort: 8000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
 sparkJob:
-  image: spark-etl:latest
+  image: "SPARK_IMAGE_PLACEHOLDER"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+cluster:
+  name: "EKS_CLUSTER_NAME_PLACEHOLDER"
+  region: "AWS_REGION_PLACEHOLDER"
+
+aws:
+  region: "AWS_REGION_PLACEHOLDER"
+  accountId: "AWS_ACCOUNT_ID_PLACEHOLDER"
+
+storage:
+  dagsBucket: "DAGS_BUCKET_PLACEHOLDER"
+  dataBucket: "DATA_BUCKET_PLACEHOLDER"

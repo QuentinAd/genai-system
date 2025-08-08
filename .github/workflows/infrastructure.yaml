@@ -1,7 +1,10 @@
-name: Infrastrucutre Deployment Pipeline
+name: Infrastructure Deployment Pipeline
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths: [ 'infra/**' ]
   
 env:
   AWS_REGION: ca-central-1
@@ -13,6 +16,8 @@ jobs:
   infra:
     name: Terraform Apply
     runs-on: ubuntu-latest
+    outputs:
+      terraform-outputs: ${{ steps.terraform-output.outputs.terraform-outputs }}
     defaults:
       run:
         working-directory: infra
@@ -23,6 +28,7 @@ jobs:
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.7
+          terraform_wrapper: false
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -34,12 +40,29 @@ jobs:
       - name: Terraform Init
         run: terraform init -input=false
 
-
       - name: Terraform Validate & Plan
         run: |
           terraform validate
           terraform plan -out=tfplan
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         run: terraform apply -input=false tfplan
+
+      - name: Export Terraform Outputs
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        id: terraform-output
+        run: |
+          terraform_outputs=$(terraform output -json)
+          echo "terraform-outputs<<EOF" >> $GITHUB_OUTPUT
+          echo "$terraform_outputs" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Upload Terraform Outputs
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-outputs
+          path: |
+            infra/terraform.tfstate
+          retention-days: 30
