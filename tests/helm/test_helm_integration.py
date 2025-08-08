@@ -98,3 +98,30 @@ def test_placeholder_values_in_values_yaml():
     assert "BACKEND_IMAGE_PLACEHOLDER" in content, "Should use backend image placeholder"
     assert "SPARK_IMAGE_PLACEHOLDER" in content, "Should use spark image placeholder"
     assert "EKS_CLUSTER_NAME_PLACEHOLDER" in content, "Should use cluster name placeholder"
+    
+    # Check that secrets section exists but without default values
+    assert "secrets:" in content, "Should have secrets section"
+    assert 'openaiApiKey: ""' in content, "Should have empty openaiApiKey placeholder"
+    assert 'awsAccessKeyId: ""' in content, "Should have empty awsAccessKeyId placeholder"
+
+
+def test_secret_template_uses_proper_templating():
+    """Test that secret.yaml uses proper Helm templating instead of hardcoded values."""
+    helm_dir = Path(__file__).parent.parent.parent / "helm"
+    secret_file = helm_dir / "templates" / "secret.yaml"
+    
+    with open(secret_file, 'r') as f:
+        content = f.read()
+    
+    # Should NOT contain hardcoded base64 values
+    assert "T1BFTkFJX0FQSV9LRVlfUExBQ0VIT0xERVI=" not in content, "Should not contain hardcoded OpenAI key"
+    assert "QVdTX0FDQ0VTU19LRVlfSURfUExBQ0VIT0xERVI=" not in content, "Should not contain hardcoded AWS access key"
+    assert "QVdTX1NFQ1JFVF9BQ0NFU1NfS0VZX1BMQUNFSE9MREVSRA==" not in content, "Should not contain hardcoded AWS secret key"
+    
+    # Should contain proper Helm templating
+    assert "{{ .Values.secrets.openaiApiKey | b64enc | quote }}" in content, "Should use Helm templating for OpenAI key"
+    assert "{{ .Values.secrets.awsAccessKeyId | b64enc | quote }}" in content, "Should use Helm templating for AWS access key"
+    assert "{{ .Values.secrets.awsSecretAccessKey | b64enc | quote }}" in content, "Should use Helm templating for AWS secret key"
+    
+    # Should have conditional checks
+    assert "{{- if .Values.secrets.openaiApiKey }}" in content, "Should conditionally include secrets"

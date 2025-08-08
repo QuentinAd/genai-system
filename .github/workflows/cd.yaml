@@ -132,11 +132,24 @@ jobs:
       - name: Get Terraform outputs
         id: terraform-outputs
         run: |
-          # In a real scenario, we would fetch this from the infrastructure workflow
-          # For now, we'll use the secrets until the infrastructure pipeline runs
-          echo "eks-cluster-name=${{ secrets.EKS_CLUSTER_NAME }}" >> $GITHUB_OUTPUT
-          echo "dags-bucket=${{ secrets.MWAA_DAGS_BUCKET }}" >> $GITHUB_OUTPUT
-          echo "aws-account-id=${{ secrets.AWS_ACCOUNT_ID }}" >> $GITHUB_OUTPUT
+          # Download terraform outputs from infrastructure workflow
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # Get the terraform outputs from the infrastructure workflow that triggered this
+            echo "Fetching Terraform outputs from infrastructure workflow..."
+            
+            # For now, use the workflow inputs/secrets until we implement artifact download
+            # TODO: Implement proper artifact download from infrastructure workflow
+            echo "eks-cluster-name=${{ secrets.EKS_CLUSTER_NAME }}" >> $GITHUB_OUTPUT
+            echo "dags-bucket=${{ secrets.MWAA_DAGS_BUCKET }}" >> $GITHUB_OUTPUT
+            echo "aws-account-id=${{ secrets.AWS_ACCOUNT_ID }}" >> $GITHUB_OUTPUT
+            echo "data-bucket=${{ secrets.DATA_BUCKET_NAME }}" >> $GITHUB_OUTPUT
+          else
+            # Manual dispatch - use secrets as fallback
+            echo "eks-cluster-name=${{ secrets.EKS_CLUSTER_NAME }}" >> $GITHUB_OUTPUT
+            echo "dags-bucket=${{ secrets.MWAA_DAGS_BUCKET }}" >> $GITHUB_OUTPUT
+            echo "aws-account-id=${{ secrets.AWS_ACCOUNT_ID }}" >> $GITHUB_OUTPUT
+            echo "data-bucket=${{ secrets.DATA_BUCKET_NAME }}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Deploy with Helm
         run: |
@@ -148,7 +161,10 @@ jobs:
             --set aws.region="${{ env.AWS_REGION }}" \
             --set aws.accountId="${{ steps.terraform-outputs.outputs.aws-account-id }}" \
             --set storage.dagsBucket="${{ steps.terraform-outputs.outputs.dags-bucket }}" \
-            --set storage.dataBucket="${{ secrets.DATA_BUCKET_NAME }}" \
+            --set storage.dataBucket="${{ steps.terraform-outputs.outputs.data-bucket }}" \
+            --set-string secrets.openaiApiKey="${{ secrets.OPENAI_API_KEY }}" \
+            --set-string secrets.awsAccessKeyId="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            --set-string secrets.awsSecretAccessKey="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
             --namespace genai-system \
             --create-namespace \
             --wait \

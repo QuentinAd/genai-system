@@ -31,3 +31,10 @@ aws:
 storage:
   dagsBucket: "DAGS_BUCKET_PLACEHOLDER"
   dataBucket: "DATA_BUCKET_PLACEHOLDER"
+
+# Secrets are injected from CI/CD pipeline via --set-string flags
+# Do not set default values for secrets in this file
+secrets:
+  openaiApiKey: ""
+  awsAccessKeyId: ""
+  awsSecretAccessKey: ""
