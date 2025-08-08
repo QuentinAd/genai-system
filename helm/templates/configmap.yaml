@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-config
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+data:
+  AWS_REGION: {{ .Values.aws.region | quote }}
+  AWS_ACCOUNT_ID: {{ .Values.aws.accountId | quote }}
+  EKS_CLUSTER_NAME: {{ .Values.cluster.name | quote }}
+  DAGS_BUCKET: {{ .Values.storage.dagsBucket | quote }}
+  DATA_BUCKET: {{ .Values.storage.dataBucket | quote }}
+  SERVICE_PORT: {{ .Values.backend.servicePort | quote }}
