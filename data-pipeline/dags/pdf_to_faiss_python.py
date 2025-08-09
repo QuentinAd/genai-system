@@ -36,8 +36,7 @@ logger = logging.getLogger(__name__)
 # Shared paths
 DATA_DIR = "/opt/airflow/data"
 RAW_TEXT = os.path.join(DATA_DIR, "raw_text.txt")
-EMB_DIR = os.path.join(DATA_DIR, "embeddings.npy")
-INDEX_PATH = os.path.join(DATA_DIR, "index.faiss")
+CHROMA_DIR = os.path.join(DATA_DIR, "chroma")
 PDF_PATH = os.path.join(DATA_DIR, "input.pdf")
 MODEL = os.getenv("EMBED_MODEL", "text-embedding-3-small")
 
@@ -47,69 +46,58 @@ DEFAULT_ARGS = {
 }
 
 with DAG(
-    dag_id="pdf_to_faiss_python",
+    dag_id="pdf_to_chroma_python",
     default_args=DEFAULT_ARGS,
     schedule=None,
-    description="PDF to FAISS index using pure Python",
+    description="PDF to ChromaDB index using pure Python",
     catchup=False,
-    tags=["etl", "python", "faiss"],
+    tags=["etl", "python", "chroma", "embeddings"],
 ) as dag:
 
     def extract_pdf_task():
         """Load PDF and write raw text to file"""
         logger.info(f"Extracting text from {PDF_PATH}")
         text = load_pdf(PDF_PATH)
-        with open(RAW_TEXT, "w") as f:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(RAW_TEXT, "w", encoding="utf-8") as f:
             f.write(text)
         logger.info(f"Raw text saved to {RAW_TEXT}")
 
-    def generate_embeddings_task():
-        """Chunk text, generate embeddings, save to numpy file"""
+    def build_chroma_task():
+        """Chunk text and persist Chroma collection on disk"""
         logger.info(f"Loading raw text from {RAW_TEXT}")
-        with open(RAW_TEXT) as f:
+        with open(RAW_TEXT, encoding="utf-8") as f:
             text = f.read()
         logger.info("Chunking text")
         chunks = chunk_text(text)
-        # dynamic imports for OpenAI and numpy
-        OpenAI = __import__("openai", fromlist=["OpenAI"]).OpenAI
-        np = __import__("numpy")
-        client = OpenAI()
-        embeddings = []
-        for chunk in chunks:
-            resp = client.embeddings.create(model=MODEL, input=[chunk])
-            embeddings.append(resp.data[0].embedding)
-        arr = np.array(embeddings, dtype="float32")
-        np.save(EMB_DIR, arr)
-        logger.info(f"Embeddings saved to {EMB_DIR} (shape={arr.shape})")
+        # Dynamic imports to avoid import errors during DAG parse
+        doc_mod = __import__("langchain.schema", fromlist=["Document"])
+        Document = doc_mod.Document
+        emb_mod = __import__("langchain_openai", fromlist=["OpenAIEmbeddings"])
+        OpenAIEmbeddings = emb_mod.OpenAIEmbeddings
+        vc_mod = __import__("langchain_community.vectorstores", fromlist=["Chroma"])
+        Chroma = vc_mod.Chroma
 
-    def build_index_task():
-        """Load embeddings and build FAISS index"""
-        logger.info(f"Loading embeddings from {EMB_DIR}")
-        # dynamic imports for numpy and faiss
-        np = __import__("numpy")
-        faiss = __import__("faiss")
-        arr = np.load(EMB_DIR)
-        dim = arr.shape[1]
-        logger.info(f"Creating FAISS index with dimension {dim}")
-        index = faiss.IndexFlatL2(dim)
-        index.add(arr)
-        logger.info(f"Index contains {index.ntotal} vectors")
-        faiss.write_index(index, INDEX_PATH)
-        logger.info(f"Index saved to {INDEX_PATH}")
+        docs = [Document(page_content=c) for c in chunks]
+        os.makedirs(CHROMA_DIR, exist_ok=True)
+        logger.info(f"Building Chroma vectorstore in {CHROMA_DIR}")
+        embeddings = OpenAIEmbeddings(model=MODEL)
+        Chroma.from_documents(
+            documents=docs,
+            embedding=embeddings,
+            persist_directory=CHROMA_DIR,
+        )
+        # Chroma >=0.4 persists automatically on creation
+        logger.info("Chroma vectorstore persisted successfully")
 
     extract_pdf = PythonOperator(
         task_id="extract_pdf",
         python_callable=extract_pdf_task,
     )
 
-    generate_embeddings = PythonOperator(
-        task_id="generate_embeddings",
-        python_callable=generate_embeddings_task,
+    build_chroma = PythonOperator(
+        task_id="build_chroma",
+        python_callable=build_chroma_task,
     )
 
-    build_index = PythonOperator(
-        task_id="build_index",
-        python_callable=build_index_task,
-    )
-
-    extract_pdf >> generate_embeddings >> build_index
+    extract_pdf >> build_chroma
