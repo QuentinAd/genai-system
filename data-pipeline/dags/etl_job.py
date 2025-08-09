@@ -1,11 +1,8 @@
 from airflow import DAG
-import os
-
-from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import (
-    KubernetesPodOperator,
-)
+from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 from airflow.providers.docker.operators.docker import DockerOperator
 from datetime import datetime
+import os
 
 default_args = {
     "start_date": datetime(2025, 1, 1),
@@ -14,7 +11,7 @@ default_args = {
 
 with DAG(
     "etl_csv_to_parquet_k8s",
-    schedule_interval=None,
+    schedule=None,
     catchup=False,
     default_args=default_args,
     description="Run PySpark ETL",

@@ -15,3 +15,6 @@ terraform.*
 
 # airflow
 data-pipeline/logs/*
+
+# macos
+.DS_Store
