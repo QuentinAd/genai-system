@@ -7,6 +7,13 @@ from .schema import ChatInput
 chat_bp = Blueprint("chat", __name__)
 
 
+@chat_bp.get("/health")
+@log_call
+async def health() -> Response:
+    """Basic health check endpoint."""
+    return Response("ok", content_type="text/plain")
+
+
 @chat_bp.post("/chat")
 @log_call
 @validate(ChatInput)
