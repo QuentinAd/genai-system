@@ -28,7 +28,7 @@ Follow the rules in this document when creating or modifying code anywhere in th
 
 * Located in `app/`. This service is a Quart application using Blueprints, asyncio, httpx, Gunicorn, and LangChain.
 * It enables streaming conversational AI via OpenAI models and implements token streaming using asynchronous generator functions.
-* Demonstrate Python best practices: classes, inheritance, dunder methods like \`\_\_**init\_\_**\` where appropriate, decorators, and robust input validation.
+* Demonstrate Python best practices: classes, inheritance, dunder methods like `__**init**__` where appropriate, decorators, and robust input validation.
 * Tests for the backend must mock network calls and cover asynchronous routes.
 
 ## Infrastructure Code
