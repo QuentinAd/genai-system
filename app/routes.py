@@ -32,24 +32,3 @@ async def chat_endpoint(data: ChatInput) -> Response:
 
     # Quart treats the async generator as a streamed body
     return Response(generate(), content_type="text/plain")
-
-
-@chat_bp.post("/agent")
-@log_call
-@validate(ChatInput)
-async def agent_endpoint(data: ChatInput) -> Response:
-    """Stream LangGraph agent events as NDJSON for real-time UI updates."""
-    agent_runner = current_app.config.get("AGENT")
-
-    if agent_runner is None:
-        # Fallback: simple stream of final text
-        async def fallback():
-            yield b'{"type":"final","content":"Agent not configured"}\n'
-
-        return Response(fallback(), content_type="application/x-ndjson")
-
-    async def generate():
-        async for chunk in agent_runner.stream(data.message):
-            yield chunk
-
-    return Response(generate(), content_type="application/x-ndjson")

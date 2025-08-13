@@ -10,7 +10,6 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/chat': target,
-      '/agent': target,
       '/health': target,
     },
   },
