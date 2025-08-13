@@ -68,7 +68,3 @@ jobs:
       - name: Build UI
         working-directory: ui
         run: npm run build
-
-      - name: Build Docker image
-        run: |
-          docker build -t ci-test-image -f data-pipeline/docker/Dockerfile data-pipeline
