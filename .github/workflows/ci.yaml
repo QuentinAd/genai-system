@@ -30,8 +30,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r data-pipeline/requirements.txt
-          pip install -r app/requirements.txt
+          pip install -r ci-requirements.txt
 
       - name: Lint with Ruff
         run: ruff check .
