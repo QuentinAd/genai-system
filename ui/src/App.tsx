@@ -75,7 +75,7 @@ function App() {
           if (done) break
           assistant += decoder.decode(value, { stream: true })
           setMessages((m) => {
-            const base = m.filter((x) => x !== null)
+            const base = m
             const lastIsAssistant = base[base.length - 1]?.role === 'assistant'
             if (lastIsAssistant) {
               const copy = [...base]
