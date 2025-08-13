@@ -5,6 +5,7 @@ from .routes import chat_bp
 # Select chatbot based on Chroma index presence or environment variable
 import os
 from .services.chatbot import OpenAIChatBot, RAGChatBot
+from .services.agent import AgentRunner, build_retriever
 
 
 def create_app(chatbot: OpenAIChatBot | None = None) -> Quart:
@@ -34,8 +35,21 @@ def create_app(chatbot: OpenAIChatBot | None = None) -> Quart:
         if selected:
             print(f"[INFO] Using RAGChatBot with Chroma directory: {selected}")
             chatbot = RAGChatBot(index_path=selected)
+            # Initialize Agent with retriever tool backed by the same index
+            try:
+                retriever_fn = build_retriever(selected)
+                app.config["AGENT"] = AgentRunner(retriever_fn)
+                print("[INFO] LangGraph Agent initialized")
+            except Exception as e:
+                print(f"[WARN] Failed to init LangGraph Agent: {e}")
+                app.config["AGENT"] = None
         else:
             chatbot = OpenAIChatBot()
+            app.config["AGENT"] = None
+    else:
+        # If custom chatbot is injected, do not configure agent by default
+        app.config["AGENT"] = None
+
     app.config["CHATBOT"] = chatbot
     app.register_blueprint(chat_bp)
     return app

@@ -1,4 +1,4 @@
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_core.embeddings import FakeEmbeddings
 
 from app.services.chatbot import load_retriever_tool
