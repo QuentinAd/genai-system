@@ -67,7 +67,3 @@ body {
 .copy-btn:hover {
   background: rgb(2 6 23 / 0.9);
 }
-
-/* Hide scrollbar but keep scroll */
-.no-scrollbar::-webkit-scrollbar { display: none; } /* Chrome/Safari */
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; } /* IE/Firefox */

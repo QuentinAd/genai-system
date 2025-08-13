@@ -5,14 +5,9 @@ from typing import AsyncGenerator
 
 import httpx
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_core.messages import HumanMessage
-from langchain_core.documents import Document
-from langchain_core.embeddings import Embeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain.schema import HumanMessage
 from langchain_chroma import Chroma
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
+from langchain.chains import RetrievalQA
 
 
 class ChatBotBase:
@@ -48,21 +43,20 @@ class OpenAIChatBot(ChatBotBase):
 
     def __init__(
         self,
-        model_name: str = "gpt-4o-mini",
+        model_name: str = "gpt-4.1",
         temperature: float = 0.0,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         super().__init__(model_name, temperature, client)
-        # Use current v0.3+ style param `model`
         self.llm = ChatOpenAI(
-            model=model_name,
+            model_name=model_name,
             temperature=temperature,
             streaming=True,
         )
 
     async def stream_chat(self, message: str) -> AsyncGenerator[str, None]:
         async for chunk in self.llm.astream([HumanMessage(content=message)]):
-            yield getattr(chunk, "content", "") or ""
+            yield chunk.content or ""
 
 
 class DummyChatBot(ChatBotBase):
@@ -77,7 +71,7 @@ class DummyChatBot(ChatBotBase):
             await asyncio.sleep(0)
 
 
-def load_retriever_tool(index_path: str, embeddings: Embeddings):
+def load_retriever_tool(index_path: str, embeddings: OpenAIEmbeddings):
     """Return a simple tool that searches the Chroma collection."""
     vectorstore = Chroma(
         persist_directory=index_path,
@@ -96,21 +90,23 @@ def load_retriever_tool(index_path: str, embeddings: Embeddings):
 
 
 class RAGChatBot(OpenAIChatBot):
-    """RAG chatbot implemented with LangChain v0.3 chains (no agents)."""
+    """Chatbot that uses Chroma retriever and conversation memory."""
 
     def __init__(self, index_path: str, **kwargs) -> None:
         super().__init__(**kwargs)
         import os
+        from langchain.schema import Document
+        from langchain.text_splitter import RecursiveCharacterTextSplitter
 
         embeddings = OpenAIEmbeddings()
-        # Resolve raw_text for bootstrap if needed
+        # If a Chroma directory exists, load it; otherwise build from raw_text.txt
         if os.path.basename(index_path) == "chroma":
             raw_text_path = os.path.join(os.path.dirname(index_path), "raw_text.txt")
         else:
             raw_text_path = os.path.join(index_path, "raw_text.txt")
 
         if os.path.isdir(index_path):
-            # Load existing persisted store
+            # try to open existing persisted store
             self.vectorstore = Chroma(
                 persist_directory=index_path,
                 embedding_function=embeddings,
@@ -139,34 +135,19 @@ class RAGChatBot(OpenAIChatBot):
             except Exception:
                 pass
 
-        # Top-k retrieval
+        # limit to top-3 docs to control token usage
         self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 3})
 
-        # Build the QA chain using the recommended v0.3 helpers (stuff documents)
-        qa_prompt = ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    "You are an assistant for question-answering tasks. Use the provided context "
-                    "to answer the question. If you don't know the answer, say you don't know.\n\n"
-                    "Context:\n{context}",
-                ),
-                ("human", "{input}"),
-            ]
+        # build a RetrievalQA chain with map_reduce to handle chunking & summarization
+        self.qa_chain = RetrievalQA.from_chain_type(
+            llm=self.llm,
+            chain_type="map_reduce",
+            retriever=self.retriever,
+            return_source_documents=False,
         )
-        question_answer_chain = create_stuff_documents_chain(self.llm, qa_prompt)
-        self.rag_chain = create_retrieval_chain(self.retriever, question_answer_chain)
 
     async def stream_chat(self, message: str) -> AsyncGenerator[str, None]:
-        """Stream tokens from the RAG chain using astream_events."""
-        # Stream only the chat model tokens to the client
-        async for event in self.rag_chain.astream_events(
-            {"input": message},
-            version="v1",
-        ):
-            if event.get("event") == "on_chat_model_stream":
-                chunk = event.get("data", {}).get("chunk")
-                # chunk is an AIMessageChunk; its `content` is a string or list of parts
-                token = getattr(chunk, "content", "") or ""
-                if token:
-                    yield token
+        """Generate an answer via RetrievalQA (handles retrieval, chunking & summarization)."""
+        result = await self.qa_chain.ainvoke(message)
+        answer = result.get("result") if isinstance(result, dict) else result
+        yield answer
