@@ -133,6 +133,31 @@ docker compose build spark
 docker compose up airflow-init && docker compose up
 ```
 
+### Frontend UI
+```bash
+# From the ui/ directory
+cd ui
+
+# Start Vite dev server (proxies /chat and /health to the backend)
+npm run dev
+
+# Override proxy target if backend is not on localhost:8000
+VITE_BACKEND_URL=http://localhost:8000 npm run dev
+
+# Lint, format, test, and build
+npm run lint && npm run format && npm run test && npm run build
+```
+
+### Run app and UI together (Docker Compose)
+```bash
+# Start only the app and ui services
+docker compose up -d app ui
+
+# URLs
+# UI:      http://localhost:5173
+# Backend: http://localhost:8000
+```
+
 ## Testing and Quality Assurance
 
 ### Running Tests
@@ -154,6 +179,12 @@ ruff check .
 
 # Fix auto-fixable issues
 ruff check . --fix
+```
+
+### UI
+```bash
+cd ui
+npm run lint && npm run format && npm run test
 ```
 
 ## Deployment
@@ -191,6 +222,7 @@ helm upgrade --install genai-system ./helm \
 
 ### Environment Variables
 - `OPENAI_API_KEY`: OpenAI API key for LLM integration
+- `VITE_BACKEND_URL`: Proxy target for the UI dev server (defaults to http://localhost:8000)
 - `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`: AWS credentials
 - `AWS_REGION`: Target AWS region
 
@@ -240,4 +272,3 @@ curl http://localhost:8000/health
 6. Submit pull requests for review
 
 For more detailed information about individual components, refer to the README files in each service directory.
-

@@ -147,5 +147,34 @@ services:
       airflow-apiserver:
         condition: service_healthy
 
+  app:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./data-pipeline/data:/app/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  ui:
+    image: node:22
+    working_dir: /ui
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    environment:
+      - VITE_BACKEND_URL=http://app:8000
+      - NODE_ENV=development
+    volumes:
+      - ./ui:/ui
+    ports:
+      - "5173:5173"
+    depends_on:
+      - app
+    restart: unless-stopped
+
 volumes:
   postgres-db-volume:

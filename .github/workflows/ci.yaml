@@ -30,8 +30,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r data-pipeline/requirements.txt
-          pip install -r app/requirements.txt
+          pip install -r ci-requirements.txt
 
       - name: Lint with Ruff
         run: ruff check .
@@ -46,6 +45,26 @@ jobs:
           name: pytest-results
           path: pytest-results.xml
 
-      - name: Build Docker image
-        run: |
-          docker build -t ci-test-image -f data-pipeline/docker/Dockerfile data-pipeline
+      # UI pipeline
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Lint UI
+        working-directory: ui
+        run: npm run lint
+
+      - name: Test UI
+        working-directory: ui
+        run: npm test -- --run
+
+      - name: Build UI
+        working-directory: ui
+        run: npm run build
