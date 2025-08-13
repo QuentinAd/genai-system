@@ -11,7 +11,7 @@ chat_bp = Blueprint("chat", __name__)
 @log_call
 async def health() -> Response:
     """Basic health check endpoint."""
-    return Response("ok/n", content_type="text/plain")
+    return Response("ok\n", content_type="text/plain")
 
 
 @chat_bp.post("/chat")
