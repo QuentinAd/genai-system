@@ -222,7 +222,7 @@ helm upgrade --install genai-system ./helm \
 
 ### Environment Variables
 - `OPENAI_API_KEY`: OpenAI API key for LLM integration
-- `VITE_BACKEND_URL`: Proxy target for the UI dev server (defaults to http://localhost:8000)
+- `VITE_BACKEND_URL`: Backend API base URL for the UI (defaults to http://localhost:8000)
 - `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`: AWS credentials
 - `AWS_REGION`: Target AWS region
 

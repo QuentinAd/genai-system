@@ -6,6 +6,8 @@ import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/github-dark-dimmed.css'
 import './App.css'
 
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/$/, '')
+
 function isAbortError(err: unknown): boolean {
   return (
     typeof err === 'object' &&
@@ -60,7 +62,7 @@ function App() {
     setController(aborter)
 
     try {
-      const resp = await fetch('/chat', {
+      const resp = await fetch(`${BACKEND_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
@@ -70,6 +72,9 @@ function App() {
       const decoder = new TextDecoder()
       let assistant = ''
       if (reader) {
+        aborter.signal.addEventListener('abort', () => {
+          void reader.cancel()
+        })
         while (true) {
           const { value, done } = await reader.read()
           if (done) break
