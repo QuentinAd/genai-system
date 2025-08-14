@@ -16,19 +16,36 @@ function isAbortError(err: unknown): boolean {
 }
 
 function App() {
+  interface Message {
+    role: 'user' | 'assistant'
+    content: string
+    timestamp: number
+  }
   const [input, setInput] = useState('')
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>(() => {
+  const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const raw = localStorage.getItem('chat_messages')
-      return raw ? (JSON.parse(raw) as { role: 'user' | 'assistant'; content: string }[]) : []
+      return raw
+        ? (JSON.parse(raw) as Message[]).map((m, i) => ({
+            ...m,
+            timestamp: m.timestamp ?? Date.now() + i,
+          }))
+        : []
     } catch {
       return []
     }
   })
   const [loading, setLoading] = useState(false)
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => (localStorage.getItem('theme') as 'dark' | 'light') || 'dark')
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark'
+    } catch {
+      return 'dark'
+    }
+  })
   const [controller, setController] = useState<AbortController | null>(null)
   const endRef = useRef<HTMLDivElement | null>(null)
+  const saveTimeout = useRef<number>()
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -38,22 +55,31 @@ function App() {
     const root = document.documentElement
     if (theme === 'dark') root.classList.add('dark')
     else root.classList.remove('dark')
-    localStorage.setItem('theme', theme)
-  }, [theme])
-
-  useEffect(() => {
     try {
-      localStorage.setItem('chat_messages', JSON.stringify(messages))
+      localStorage.setItem('theme', theme)
     } catch {
       /* ignore */
     }
+  }, [theme])
+
+  useEffect(() => {
+    if (messages.length === 0) return
+    window.clearTimeout(saveTimeout.current)
+    saveTimeout.current = window.setTimeout(() => {
+      try {
+        localStorage.setItem('chat_messages', JSON.stringify(messages))
+      } catch {
+        /* ignore */
+      }
+    }, 300)
+    return () => window.clearTimeout(saveTimeout.current)
   }, [messages])
 
   async function send() {
     if (!input.trim() || loading) return
     const text = input
     setInput('')
-    setMessages((m) => [...m, { role: 'user', content: text }])
+    setMessages((m) => [...m, { role: 'user', content: text, timestamp: Date.now() }])
     setLoading(true)
 
     const aborter = new AbortController()
@@ -79,16 +105,27 @@ function App() {
             const lastIsAssistant = base[base.length - 1]?.role === 'assistant'
             if (lastIsAssistant) {
               const copy = [...base]
-              copy[copy.length - 1] = { role: 'assistant', content: assistant }
+              const last = copy[copy.length - 1]
+              copy[copy.length - 1] = { ...last, content: assistant }
               return copy
             }
-            return [...base, { role: 'assistant', content: assistant }]
+            return [
+              ...base,
+              { role: 'assistant', content: assistant, timestamp: Date.now() },
+            ]
           })
         }
       }
     } catch (e: unknown) {
       if (!isAbortError(e)) {
-        setMessages((m) => [...m, { role: 'assistant', content: 'Error contacting server.' }])
+        setMessages((m) => [
+          ...m,
+          {
+            role: 'assistant',
+            content: 'Error contacting server.',
+            timestamp: Date.now(),
+          },
+        ])
       }
     } finally {
       setLoading(false)
@@ -147,7 +184,7 @@ function App() {
         <div className="mx-auto w-full max-w-3xl h-full flex flex-col">
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-3">
             {messages.map((m, i) => (
-              <div key={i} className={m.role === 'user' ? 'text-right' : 'text-left'}>
+              <div key={`${i}-${m.timestamp}`} className={m.role === 'user' ? 'text-right' : 'text-left'}>
                 {m.role === 'user' ? (
                   <span className="inline-block rounded-2xl px-3 py-2 max-w-[80%] break-words shadow-sm bg-brand-600 text-white">
                     {m.content}
