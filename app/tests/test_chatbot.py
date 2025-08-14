@@ -4,7 +4,7 @@ import httpx
 from pydantic import ValidationError
 
 from app.schema import ChatInput
-from app.services.chatbot import DummyChatBot
+from app.services import DummyChatBot
 
 
 def test_chat_input_validation():
