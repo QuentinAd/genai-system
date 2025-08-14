@@ -1,10 +1,12 @@
+import logging
+import os
+
 from quart import Quart
 
 from .routes import chat_bp
-
-# Select chatbot based on Chroma index presence or environment variable
-import os
 from .services.chatbot import OpenAIChatBot, RAGChatBot
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(chatbot: OpenAIChatBot | None = None) -> Quart:
@@ -32,9 +34,10 @@ def create_app(chatbot: OpenAIChatBot | None = None) -> Quart:
                 selected = os.path.join(dir_path, "chroma")
                 break
         if selected:
-            print(f"[INFO] Using RAGChatBot with Chroma directory: {selected}")
+            logger.info("Using RAGChatBot with Chroma directory: %s", selected)
             chatbot = RAGChatBot(index_path=selected)
         else:
+            logger.info("Using default OpenAIChatBot")
             chatbot = OpenAIChatBot()
     app.config["CHATBOT"] = chatbot
     app.register_blueprint(chat_bp)
