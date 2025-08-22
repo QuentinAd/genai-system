@@ -5,8 +5,12 @@ import remarkBreaks from "remark-breaks";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark-dimmed.css";
 
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, "")
-
+const RAW_BACKEND_URL = (import.meta.env as any).VITE_BACKEND_URL || "";
+const SHOULD_USE_ABSOLUTE =
+  typeof RAW_BACKEND_URL === "string" &&
+  /^https?:\/\//.test(RAW_BACKEND_URL) &&
+  !/^https?:\/\/app(?::|\/|$)/.test(RAW_BACKEND_URL);
+const BACKEND_URL = SHOULD_USE_ABSOLUTE ? RAW_BACKEND_URL.replace(/\/$/, "") : "";
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -92,7 +96,8 @@ function App() {
     setController(aborter);
 
     try {
-      const resp = await fetch(`${BACKEND_URL}/chat`, {
+    const url = BACKEND_URL ? `${BACKEND_URL}/chat` : "/chat";
+    const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
