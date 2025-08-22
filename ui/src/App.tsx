@@ -5,9 +5,13 @@ import remarkBreaks from "remark-breaks";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark-dimmed.css";
 
-// Prefer Vite's env at runtime; fall back to process.env for tests (no 'any')
+// Prefer the Vite proxy in dev (relative path) to avoid CORS; use env in prod/tests
 function getBackendBase(): string {
-  const viteEnv = (import.meta as unknown as { env?: { VITE_BACKEND_URL?: unknown } }).env;
+  const viteEnv = (import.meta as unknown as { env?: { VITE_BACKEND_URL?: unknown; DEV?: boolean } }).env;
+  const isDev = Boolean(viteEnv?.DEV);
+  // If running in a browser and Vite dev server, use relative path so the proxy handles routing
+  if (typeof window !== "undefined" && isDev) return "";
+
   const nodeEnv = (globalThis as unknown as { process?: { env?: { VITE_BACKEND_URL?: unknown } } }).process?.env;
   const candidate = viteEnv?.VITE_BACKEND_URL ?? nodeEnv?.VITE_BACKEND_URL;
   return typeof candidate === "string" ? candidate.replace(/\/$/, "") : "";
