@@ -5,6 +5,8 @@ import remarkBreaks from 'remark-breaks'
 import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/github-dark-dimmed.css'
 
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/$/, '')
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
@@ -87,7 +89,7 @@ function App() {
     setController(aborter)
 
     try {
-      const resp = await fetch('/chat', {
+      const resp = await fetch(`${BACKEND_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
@@ -98,6 +100,9 @@ function App() {
       let assistant = ''
       const assistantTimestamp = Date.now()
       if (reader) {
+        aborter.signal.addEventListener('abort', () => {
+          void reader.cancel()
+        })
         while (true) {
           const { value, done } = await reader.read()
           if (done) break
