@@ -25,7 +25,7 @@ describe('App', () => {
     render(<App />)
     const input = screen.getByPlaceholderText('Type your message...')
     await userEvent.type(input, 'Hello')
-    userEvent.click(screen.getByText('Send'))
+    await userEvent.click(screen.getByText('Send'))
     await screen.findByText('Stop')
     expect(fetch).toHaveBeenCalledWith('http://example.com/chat', expect.any(Object))
     await userEvent.click(screen.getByText('Stop'))
