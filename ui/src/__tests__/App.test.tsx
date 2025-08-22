@@ -46,7 +46,10 @@ describe('App', () => {
       signal = {}
       abort = abortSpy
     }
-    vi.stubGlobal('AbortController', MockAbortController as any)
+    vi.stubGlobal(
+      'AbortController',
+      MockAbortController as unknown as typeof AbortController,
+    )
 
     const stream = new ReadableStream<Uint8Array>({
       start() {
