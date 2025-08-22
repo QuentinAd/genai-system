@@ -1,8 +1,10 @@
-# Guidelines for Generative AI Developers
+# Guidelines for Generative AI Contributors
 
-This repository contains a data pipeline service, a backend service, and infrastructure code. The backend service provides a Quart web application using Blueprints, asyncio, httpx, Gunicorn, and LangChain for streaming chatbots.
+This document is for generative AI agents working in this repository. Human developers should read [README.md](README.md) for project guidance.
 
 Follow the rules in this document when creating or modifying code anywhere in the repository.
+
+Always check [README.md](README.md) and [.github/copilot-instructions.md](.github/copilot-instructions.md) for updated guidance before starting work.
 
 ## General Workflow
 
