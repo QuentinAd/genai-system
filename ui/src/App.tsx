@@ -7,14 +7,35 @@ import "highlight.js/styles/github-dark-dimmed.css";
 
 // Prefer the Vite proxy in dev (relative path) to avoid CORS; use env in prod/tests
 function getBackendBase(): string {
-  const viteEnv = (import.meta as unknown as { env?: { VITE_BACKEND_URL?: unknown; DEV?: boolean } }).env;
-  const isDev = Boolean(viteEnv?.DEV);
-  // If running in a browser and Vite dev server, use relative path so the proxy handles routing
-  if (typeof window !== "undefined" && isDev) return "";
+  const injected = (globalThis as unknown as { __APP_BACKEND_URL?: unknown })
+    .__APP_BACKEND_URL;
+  if (typeof injected === "string" && injected !== "")
+    return injected.replace(/\/$/, "");
 
-  const nodeEnv = (globalThis as unknown as { process?: { env?: { VITE_BACKEND_URL?: unknown } } }).process?.env;
-  const candidate = viteEnv?.VITE_BACKEND_URL ?? nodeEnv?.VITE_BACKEND_URL;
-  return typeof candidate === "string" ? candidate.replace(/\/$/, "") : "";
+  const viteEnv = (
+    import.meta as unknown as {
+      env?: { VITE_BACKEND_URL?: unknown; DEV?: boolean; VITEST?: boolean };
+    }
+  ).env;
+  const isDev = Boolean(viteEnv?.DEV);
+  const isTest = Boolean(viteEnv?.VITEST);
+  // If running in a browser and Vite dev server (but not tests), use relative path so the proxy handles routing
+  if (typeof window !== "undefined" && isDev && !isTest) return "";
+
+  let nodeEnv: { VITE_BACKEND_URL?: unknown } | undefined;
+  try {
+    nodeEnv = Function("return process")().env;
+  } catch {
+    /* no node env available */
+  }
+  const envUrl =
+    (typeof viteEnv?.VITE_BACKEND_URL === "string" && viteEnv.VITE_BACKEND_URL !== ""
+      ? viteEnv.VITE_BACKEND_URL
+      : undefined) ??
+    (typeof nodeEnv?.VITE_BACKEND_URL === "string" && nodeEnv.VITE_BACKEND_URL !== ""
+      ? nodeEnv.VITE_BACKEND_URL
+      : undefined);
+  return envUrl ? envUrl.replace(/\/$/, "") : "";
 }
 const BACKEND_URL = getBackendBase();
 interface Message {

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 
 // Provide a backend URL for tests before importing the app
-process.env.VITE_BACKEND_URL = 'http://example.com'
+vi.stubGlobal('__APP_BACKEND_URL', 'http://example.com')
 const App = (await import('../App')).default
 
 const cancel = vi.fn()
