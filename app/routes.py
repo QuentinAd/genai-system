@@ -4,7 +4,6 @@ from .decorators import log_call, validate
 from .schema import ChatInput
 from .services import ChatBotBase
 
-
 def create_chat_blueprint(chatbot: ChatBotBase) -> Blueprint:
     chat_bp = Blueprint("chat", __name__)
 

@@ -5,6 +5,12 @@ import remarkBreaks from 'remark-breaks'
 import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/github-dark-dimmed.css'
 
+interface Message {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+}
+
 function isAbortError(err: unknown): boolean {
   return (
     typeof err === 'object' &&
@@ -16,18 +22,31 @@ function isAbortError(err: unknown): boolean {
 
 function App() {
   const [input, setInput] = useState('')
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>(() => {
+  const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const raw = localStorage.getItem('chat_messages')
-      return raw ? (JSON.parse(raw) as { role: 'user' | 'assistant'; content: string }[]) : []
+      const base = Date.now()
+      return raw
+        ? (JSON.parse(raw) as Message[]).map((m, i) => ({
+            ...m,
+            timestamp: m.timestamp ?? base + i * 1000,
+          }))
+        : []
     } catch {
       return []
     }
   })
   const [loading, setLoading] = useState(false)
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => (localStorage.getItem('theme') as 'dark' | 'light') || 'dark')
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark'
+    } catch {
+      return 'dark'
+    }
+  })
   const [controller, setController] = useState<AbortController | null>(null)
   const endRef = useRef<HTMLDivElement | null>(null)
+  const saveTimeout = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -37,22 +56,31 @@ function App() {
     const root = document.documentElement
     if (theme === 'dark') root.classList.add('dark')
     else root.classList.remove('dark')
-    localStorage.setItem('theme', theme)
-  }, [theme])
-
-  useEffect(() => {
     try {
-      localStorage.setItem('chat_messages', JSON.stringify(messages))
+      localStorage.setItem('theme', theme)
     } catch {
       /* ignore */
     }
+  }, [theme])
+
+  useEffect(() => {
+    if (messages.length === 0) return
+    window.clearTimeout(saveTimeout.current)
+    saveTimeout.current = window.setTimeout(() => {
+      try {
+        localStorage.setItem('chat_messages', JSON.stringify(messages))
+      } catch {
+        /* ignore */
+      }
+    }, 300)
+    return () => window.clearTimeout(saveTimeout.current)
   }, [messages])
 
   async function send() {
     if (!input.trim() || loading) return
     const text = input
     setInput('')
-    setMessages((m) => [...m, { role: 'user', content: text }])
+    setMessages((m) => [...m, { role: 'user', content: text, timestamp: Date.now() }])
     setLoading(true)
 
     const aborter = new AbortController()
@@ -68,6 +96,7 @@ function App() {
       const reader = resp.body?.getReader()
       const decoder = new TextDecoder()
       let assistant = ''
+      const assistantTimestamp = Date.now()
       if (reader) {
         while (true) {
           const { value, done } = await reader.read()
@@ -78,16 +107,27 @@ function App() {
             const lastIsAssistant = base[base.length - 1]?.role === 'assistant'
             if (lastIsAssistant) {
               const copy = [...base]
-              copy[copy.length - 1] = { role: 'assistant', content: assistant }
+              const last = copy[copy.length - 1]
+              copy[copy.length - 1] = { ...last, content: assistant }
               return copy
             }
-            return [...base, { role: 'assistant', content: assistant }]
+            return [
+              ...base,
+              { role: 'assistant', content: assistant, timestamp: assistantTimestamp },
+            ]
           })
         }
       }
     } catch (e: unknown) {
       if (!isAbortError(e)) {
-        setMessages((m) => [...m, { role: 'assistant', content: 'Error contacting server.' }])
+        setMessages((m) => [
+          ...m,
+          {
+            role: 'assistant',
+            content: 'Error contacting server.',
+            timestamp: Date.now(),
+          },
+        ])
       }
     } finally {
       setLoading(false)
@@ -104,10 +144,10 @@ function App() {
     return inline ? (
       <code className={className}>{children}</code>
     ) : (
-      <div className="relative">
+      <div className="code-block">
         <button
           type="button"
-          className="absolute top-2 right-2 bg-slate-950/70 text-white border border-slate-700 px-2 py-1 rounded text-xs hover:bg-slate-950/90 dark:bg-slate-800/70 dark:hover:bg-slate-800/90"
+          className="copy-btn"
           onClick={() => navigator.clipboard.writeText(code)}
           aria-label="Copy code"
         >
@@ -146,7 +186,7 @@ function App() {
         <div className="mx-auto w-full max-w-3xl h-full flex flex-col">
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-3">
             {messages.map((m, i) => (
-              <div key={i} className={m.role === 'user' ? 'text-right' : 'text-left'}>
+              <div key={`${i}-${m.timestamp}`} className={m.role === 'user' ? 'text-right' : 'text-left'}>
                 {m.role === 'user' ? (
                   <span className="inline-block rounded-2xl px-3 py-2 max-w-[80%] break-words shadow-sm bg-brand-600 text-white">
                     {m.content}
