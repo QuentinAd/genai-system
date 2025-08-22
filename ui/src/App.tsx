@@ -4,7 +4,6 @@ import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/github-dark-dimmed.css'
-import './App.css'
 
 function isAbortError(err: unknown): boolean {
   return (
@@ -142,10 +141,10 @@ function App() {
     return inline ? (
       <code className={className}>{children}</code>
     ) : (
-      <div className="code-block">
+      <div className="relative">
         <button
           type="button"
-          className="copy-btn"
+          className="absolute top-2 right-2 bg-slate-950/70 text-white border border-slate-700 px-2 py-1 rounded text-xs hover:bg-slate-950/90 dark:bg-slate-800/70 dark:hover:bg-slate-800/90"
           onClick={() => navigator.clipboard.writeText(code)}
           aria-label="Copy code"
         >
