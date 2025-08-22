@@ -5,12 +5,14 @@ import remarkBreaks from "remark-breaks";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark-dimmed.css";
 
-const RAW_BACKEND_URL = (import.meta.env as any).VITE_BACKEND_URL || "";
-const SHOULD_USE_ABSOLUTE =
-  typeof RAW_BACKEND_URL === "string" &&
-  /^https?:\/\//.test(RAW_BACKEND_URL) &&
-  !/^https?:\/\/app(?::|\/|$)/.test(RAW_BACKEND_URL);
-const BACKEND_URL = SHOULD_USE_ABSOLUTE ? RAW_BACKEND_URL.replace(/\/$/, "") : "";
+// Prefer Vite's env at runtime; fall back to process.env for tests (no 'any')
+function getBackendBase(): string {
+  const viteEnv = (import.meta as unknown as { env?: { VITE_BACKEND_URL?: unknown } }).env;
+  const nodeEnv = (globalThis as unknown as { process?: { env?: { VITE_BACKEND_URL?: unknown } } }).process?.env;
+  const candidate = viteEnv?.VITE_BACKEND_URL ?? nodeEnv?.VITE_BACKEND_URL;
+  return typeof candidate === "string" ? candidate.replace(/\/$/, "") : "";
+}
+const BACKEND_URL = getBackendBase();
 interface Message {
   role: "user" | "assistant";
   content: string;
