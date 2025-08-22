@@ -7,8 +7,6 @@ from .routes import create_chat_blueprint
 from .services import ChatBotBase, OpenAIChatBot, RAGChatBot
 from .settings import settings
 
-import os
-
 logger = logging.getLogger(__name__)
 
 
