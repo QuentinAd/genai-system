@@ -1,121 +1,128 @@
-import { useEffect, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import remarkBreaks from 'remark-breaks'
-import rehypeHighlight from 'rehype-highlight'
-import 'highlight.js/styles/github-dark-dimmed.css'
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
+import rehypeHighlight from "rehype-highlight";
+import "highlight.js/styles/github-dark-dimmed.css";
 
 interface Message {
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: number
+  role: "user" | "assistant";
+  content: string;
+  timestamp: number;
 }
 
 function isAbortError(err: unknown): boolean {
   return (
-    typeof err === 'object' &&
+    typeof err === "object" &&
     err !== null &&
-    'name' in err &&
-    (err as { name?: string }).name === 'AbortError'
-  )
+    "name" in err &&
+    (err as { name?: string }).name === "AbortError"
+  );
 }
 
 function App() {
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
-      const raw = localStorage.getItem('chat_messages')
-      const base = Date.now()
+      const raw = localStorage.getItem("chat_messages");
+      const base = Date.now();
       return raw
         ? (JSON.parse(raw) as Message[]).map((m, i) => ({
             ...m,
             timestamp: m.timestamp ?? base + i * 1000,
           }))
-        : []
+        : [];
     } catch {
-      return []
+      return [];
     }
-  })
-  const [loading, setLoading] = useState(false)
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+  });
+  const [loading, setLoading] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
     try {
-      return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark'
+      return (localStorage.getItem("theme") as "dark" | "light") || "dark";
     } catch {
-      return 'dark'
+      return "dark";
     }
-  })
-  const [controller, setController] = useState<AbortController | null>(null)
-  const endRef = useRef<HTMLDivElement | null>(null)
-  const saveTimeout = useRef<number | undefined>(undefined)
+  });
+  const [controller, setController] = useState<AbortController | null>(null);
+  const endRef = useRef<HTMLDivElement | null>(null);
+  const saveTimeout = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   useEffect(() => {
-    const root = document.documentElement
-    if (theme === 'dark') root.classList.add('dark')
-    else root.classList.remove('dark')
+    const root = document.documentElement;
+    if (theme === "dark") root.classList.add("dark");
+    else root.classList.remove("dark");
     try {
-      localStorage.setItem('theme', theme)
+      localStorage.setItem("theme", theme);
     } catch {
       /* ignore */
     }
-  }, [theme])
+  }, [theme]);
 
   useEffect(() => {
-    if (messages.length === 0) return
-    window.clearTimeout(saveTimeout.current)
+    if (messages.length === 0) return;
+    window.clearTimeout(saveTimeout.current);
     saveTimeout.current = window.setTimeout(() => {
       try {
-        localStorage.setItem('chat_messages', JSON.stringify(messages))
+        localStorage.setItem("chat_messages", JSON.stringify(messages));
       } catch {
         /* ignore */
       }
-    }, 300)
-    return () => window.clearTimeout(saveTimeout.current)
-  }, [messages])
+    }, 300);
+    return () => window.clearTimeout(saveTimeout.current);
+  }, [messages]);
 
   async function send() {
-    if (!input.trim() || loading) return
-    const text = input
-    setInput('')
-    setMessages((m) => [...m, { role: 'user', content: text, timestamp: Date.now() }])
-    setLoading(true)
+    if (!input.trim() || loading) return;
+    const text = input;
+    setInput("");
+    setMessages((m) => [
+      ...m,
+      { role: "user", content: text, timestamp: Date.now() },
+    ]);
+    setLoading(true);
 
-    const aborter = new AbortController()
-    setController(aborter)
+    const aborter = new AbortController();
+    setController(aborter);
 
     try {
-      const resp = await fetch('/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const resp = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
         signal: aborter.signal,
-      })
-      const reader = resp.body?.getReader()
-      const decoder = new TextDecoder()
-      let assistant = ''
-      const assistantTimestamp = Date.now()
+      });
+      const reader = resp.body?.getReader();
+      const decoder = new TextDecoder();
+      let assistant = "";
+      const assistantTimestamp = Date.now();
       if (reader) {
         while (true) {
-          const { value, done } = await reader.read()
-          if (done) break
-          assistant += decoder.decode(value, { stream: true })
+          const { value, done } = await reader.read();
+          if (done) break;
+          assistant += decoder.decode(value, { stream: true });
           setMessages((m) => {
-            const base = m
-            const lastIsAssistant = base[base.length - 1]?.role === 'assistant'
+            const base = m;
+            const lastIsAssistant = base[base.length - 1]?.role === "assistant";
             if (lastIsAssistant) {
-              const copy = [...base]
-              const last = copy[copy.length - 1]
-              copy[copy.length - 1] = { ...last, content: assistant }
-              return copy
+              const copy = [...base];
+              const last = copy[copy.length - 1];
+              copy[copy.length - 1] = { ...last, content: assistant };
+              return copy;
             }
             return [
               ...base,
-              { role: 'assistant', content: assistant, timestamp: assistantTimestamp },
-            ]
-          })
+              {
+                role: "assistant",
+                content: assistant,
+                timestamp: assistantTimestamp,
+              },
+            ];
+          });
         }
       }
     } catch (e: unknown) {
@@ -123,24 +130,32 @@ function App() {
         setMessages((m) => [
           ...m,
           {
-            role: 'assistant',
-            content: 'Error contacting server.',
+            role: "assistant",
+            content: "Error contacting server.",
             timestamp: Date.now(),
           },
-        ])
+        ]);
       }
     } finally {
-      setLoading(false)
-      setController(null)
+      setLoading(false);
+      setController(null);
     }
   }
 
   function stop() {
-    controller?.abort()
+    controller?.abort();
   }
 
-  function CodeBlock({ inline, className = '', children }: { inline?: boolean; className?: string; children?: React.ReactNode }) {
-    const code = String(children ?? '')
+  function CodeBlock({
+    inline,
+    className = "",
+    children,
+  }: {
+    inline?: boolean;
+    className?: string;
+    children?: React.ReactNode;
+  }) {
+    const code = String(children ?? "");
     return inline ? (
       <code className={className}>{children}</code>
     ) : (
@@ -157,7 +172,7 @@ function App() {
           <code>{code}</code>
         </pre>
       </div>
-    )
+    );
   }
 
   return (
@@ -166,17 +181,22 @@ function App() {
         <div className="mx-auto w-full max-w-3xl flex items-center justify-between">
           <h1 className="text-lg font-semibold tracking-tight">GenAI Chat</h1>
           <div className="flex items-center gap-2">
-            {loading && <span className="text-xs text-slate-500">Generating…</span>}
+            {loading && (
+              <span className="text-xs text-slate-500">Generating…</span>
+            )}
             {loading ? (
-              <button className="rounded-md border px-2 py-1 text-sm border-red-600 text-red-600" onClick={stop}>
+              <button
+                className="rounded-md border px-2 py-1 text-sm border-red-600 text-red-600"
+                onClick={stop}
+              >
                 Stop
               </button>
             ) : null}
             <button
               className="rounded-md border px-2 py-1 text-sm border-slate-300 dark:border-slate-700"
-              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+              onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
             >
-              {theme === 'dark' ? 'Light' : 'Dark'} mode
+              {theme === "dark" ? "Light" : "Dark"} mode
             </button>
           </div>
         </div>
@@ -186,8 +206,11 @@ function App() {
         <div className="mx-auto w-full max-w-3xl h-full flex flex-col">
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-3">
             {messages.map((m, i) => (
-              <div key={`${i}-${m.timestamp}`} className={m.role === 'user' ? 'text-right' : 'text-left'}>
-                {m.role === 'user' ? (
+              <div
+                key={`${i}-${m.timestamp}`}
+                className={m.role === "user" ? "text-right" : "text-left"}
+              >
+                {m.role === "user" ? (
                   <span className="inline-block rounded-2xl px-3 py-2 max-w-[80%] break-words shadow-sm bg-brand-600 text-white">
                     {m.content}
                   </span>
@@ -216,15 +239,15 @@ function App() {
             value={input}
             rows={1}
             onInput={(e) => {
-              const el = e.currentTarget
-              el.style.height = 'auto'
-              el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
             }}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                send()
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
               }
             }}
             placeholder="Type your message..."
@@ -240,7 +263,7 @@ function App() {
         </div>
       </footer>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
