@@ -5,6 +5,12 @@ import remarkBreaks from 'remark-breaks'
 import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/github-dark-dimmed.css'
 
+interface Message {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+}
+
 function isAbortError(err: unknown): boolean {
   return (
     typeof err === 'object' &&
@@ -15,19 +21,15 @@ function isAbortError(err: unknown): boolean {
 }
 
 function App() {
-  interface Message {
-    role: 'user' | 'assistant'
-    content: string
-    timestamp: number
-  }
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const raw = localStorage.getItem('chat_messages')
+      const base = Date.now()
       return raw
         ? (JSON.parse(raw) as Message[]).map((m, i) => ({
             ...m,
-            timestamp: m.timestamp ?? Date.now() + i,
+            timestamp: m.timestamp ?? base + i * 1000,
           }))
         : []
     } catch {
@@ -94,6 +96,7 @@ function App() {
       const reader = resp.body?.getReader()
       const decoder = new TextDecoder()
       let assistant = ''
+      const assistantTimestamp = Date.now()
       if (reader) {
         while (true) {
           const { value, done } = await reader.read()
@@ -110,7 +113,7 @@ function App() {
             }
             return [
               ...base,
-              { role: 'assistant', content: assistant, timestamp: Date.now() },
+              { role: 'assistant', content: assistant, timestamp: assistantTimestamp },
             ]
           })
         }
@@ -141,10 +144,10 @@ function App() {
     return inline ? (
       <code className={className}>{children}</code>
     ) : (
-      <div className="relative">
+      <div className="code-block">
         <button
           type="button"
-          className="absolute top-2 right-2 bg-slate-950/70 text-white border border-slate-700 px-2 py-1 rounded text-xs hover:bg-slate-950/90 dark:bg-slate-800/70 dark:hover:bg-slate-800/90"
+          className="copy-btn"
           onClick={() => navigator.clipboard.writeText(code)}
           aria-label="Copy code"
         >
