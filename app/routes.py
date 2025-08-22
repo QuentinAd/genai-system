@@ -30,18 +30,18 @@ async def chat_endpoint(data: ChatInput) -> Response:
     chatbot = current_app.config["CHATBOT"]
     try:
         stream = chatbot.stream_chat(data.message)
+
+        # Async‑generator that yields **bytes**, as per Quart's requirements for streaming responses
+        async def generate():
+            try:
+                async for token in stream:
+                    yield token.encode()
+            except Exception:
+                logger.exception("Error while streaming chat response")
+                raise
+
+        # Quart treats the async generator as a streamed body
+        return Response(generate(), content_type="text/plain")
     except Exception:
         logger.exception("Failed to start chat stream")
         return Response("Internal Server Error\n", status=500, content_type="text/plain")
-
-    # Async‑generator that yields **bytes**, as per Quart's requirements for streaming responses
-    async def generate():
-        try:
-            async for token in stream:
-                yield token.encode()
-        except Exception:
-            logger.exception("Error while streaming chat response")
-            raise
-
-    # Quart treats the async generator as a streamed body
-    return Response(generate(), content_type="text/plain")

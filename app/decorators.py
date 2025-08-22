@@ -19,7 +19,7 @@ def validate(model):
                 if payload is None:
                     raise BadRequest()
                 data = model(**payload)
-            except (ValidationError, BadRequest, Exception):  # pragma: no cover - simple example
+            except (ValidationError, BadRequest):
                 logger.exception("Invalid request data")
                 return jsonify({"error": "Invalid request data"}), 400
             return await func(data, *args, **kwargs)
