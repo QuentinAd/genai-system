@@ -103,9 +103,12 @@ function App() {
       let assistant = "";
       const assistantTimestamp = Date.now();
       if (reader) {
-        aborter.signal.addEventListener('abort', () => {
-          void reader.cancel()
-        })
+        // In some test environments AbortController may be mocked without addEventListener
+        // Use optional chaining to avoid throwing and still allow Stop button to render.
+        (aborter.signal as unknown as { addEventListener?: (type: string, cb: () => void) => void })
+          .addEventListener?.('abort', () => {
+            void reader.cancel();
+          });
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
