@@ -153,6 +153,7 @@ services:
       - ./.env
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - USE_DUMMY=${USE_DUMMY:-false}
     volumes:
       - ./data-pipeline/data:/app/data
     ports:

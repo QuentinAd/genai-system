@@ -6,6 +6,7 @@ class Settings(BaseSettings):
 
     openai_api_key: str | None = None
     rag_index_path: str | None = None
+    use_dummy: bool = False
 
     class Config:
         env_prefix = ""
