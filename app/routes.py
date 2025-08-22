@@ -1,47 +1,33 @@
-# app/routes.py
-import logging
-
-from quart import Blueprint, Response, current_app
+from quart import Blueprint, Response, jsonify
 
 from .decorators import log_call, validate
 from .schema import ChatInput
-
-logger = logging.getLogger(__name__)
-
-chat_bp = Blueprint("chat", __name__)
+from .services import ChatBotBase
 
 
-@chat_bp.get("/health")
-@log_call
-async def health() -> Response:
-    """Basic health check endpoint."""
-    return Response("ok\n", content_type="text/plain")
+def create_chat_blueprint(chatbot: ChatBotBase) -> Blueprint:
+    chat_bp = Blueprint("chat", __name__)
 
+    @chat_bp.get("/health")
+    @log_call
+    async def health() -> Response:
+        """Basic health check endpoint."""
+        return Response("ok\n", content_type="text/plain")
 
-@chat_bp.post("/chat")
-@log_call
-@validate(ChatInput)
-async def chat_endpoint(data: ChatInput) -> Response:
-    """
-    Stream chatbot tokens as plain text.
-    """
+    @chat_bp.get("/models")
+    async def models() -> Response:
+        return jsonify(chatbot.model_info())
 
-    # Instantiate chatbot
-    chatbot = current_app.config["CHATBOT"]
-    try:
-        stream = chatbot.stream_chat(data.message)
+    @chat_bp.post("/chat")
+    @log_call
+    @validate(ChatInput)
+    async def chat_endpoint(data: ChatInput) -> Response:
+        """Stream chatbot tokens as plain text."""
 
-        # Async‑generator that yields **bytes**, as per Quart's requirements for streaming responses
         async def generate():
-            try:
-                async for token in stream:
-                    yield token.encode()
-            except Exception:
-                logger.exception("Error while streaming chat response")
-                raise
+            async for token in chatbot.stream_chat(data.message):
+                yield token.encode()
 
-        # Quart treats the async generator as a streamed body
         return Response(generate(), content_type="text/plain")
-    except Exception:
-        logger.exception("Failed to start chat stream")
-        return Response("Internal Server Error\n", status=500, content_type="text/plain")
+
+    return chat_bp

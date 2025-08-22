@@ -1,7 +1,7 @@
 from langchain_community.vectorstores import Chroma
 from langchain_core.embeddings import FakeEmbeddings
 
-from app.services.chatbot import load_retriever_tool
+from app.services import load_retriever_tool
 
 
 def test_load_retriever_tool(tmp_path):
