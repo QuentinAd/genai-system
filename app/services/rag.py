@@ -68,10 +68,6 @@ class RAGChatBot(OpenAIChatBot):
                 embedding=embeddings,
                 persist_directory=index_path,
             )
-            try:
-                self.vectorstore.persist()
-            except Exception:
-                pass
 
         # limit to top-3 docs to control token usage
         self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 3})
@@ -84,8 +80,13 @@ class RAGChatBot(OpenAIChatBot):
             return_source_documents=False,
         )
 
-    async def stream_chat(self, message: str) -> AsyncGenerator[str, None]:
+    async def stream_chat(self, message: str) -> AsyncGenerator[str]:
         """Generate an answer via RetrievalQA (handles retrieval, chunking & summarization)."""
         result = await self.qa_chain.ainvoke(message)
-        answer = result.get("result") if isinstance(result, dict) else result
+        if isinstance(result, dict):
+            value = result.get("result")
+        else:
+            value = result
+        # Coerce to string and guard against None to satisfy AsyncGenerator[str, None]
+        answer: str = "" if value is None else str(value)
         yield answer
