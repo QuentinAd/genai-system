@@ -45,7 +45,7 @@ function App() {
   })
   const [controller, setController] = useState<AbortController | null>(null)
   const endRef = useRef<HTMLDivElement | null>(null)
-  const saveTimeout = useRef<number>()
+  const saveTimeout = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
