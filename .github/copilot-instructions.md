@@ -1,5 +1,7 @@
 # Generative AI System
 
+These instructions are for generative AI agents contributing to this repository. Human developers should refer to [README.md](../README.md) for project overview. Always review [README.md](../README.md) and [AGENTS.md](../AGENTS.md) for up-to-date guidance before making changes.
+
 This repository contains a data pipeline service, a backend service, a frontend UI, and infrastructure code. The backend service provides a Quart web application using Blueprints, asyncio, httpx, Gunicorn, and LangChain for streaming chatbots. The frontend is a Vite + React + TypeScript app that consumes the streaming chat endpoint.
 
 Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.

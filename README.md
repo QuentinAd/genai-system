@@ -2,6 +2,8 @@
 
 This repository contains a comprehensive data pipeline service, backend service, and infrastructure code designed for scalable generative AI workloads. The backend service provides a Quart web application using Blueprints, asyncio, httpx, Gunicorn, and LangChain for streaming chatbots.
 
+This README is intended for human contributors. Generative AI agents should consult [AGENTS.md](AGENTS.md) and [.github/copilot-instructions.md](.github/copilot-instructions.md) for workflow details before making changes.
+
 ## Architecture Overview
 
 - **data-pipeline/** – Airflow DAGs and PySpark jobs running on Kubernetes
@@ -158,12 +160,27 @@ docker compose up -d app ui
 # Backend: http://localhost:8000
 ```
 
+### Makefile commands
+Common development tasks are available through the `Makefile`:
+
+```bash
+make app      # docker compose up --build -d app
+make ui       # docker compose up --build -d app ui
+make airflow  # build Spark image and start full Airflow stack
+make down     # docker compose down
+make lint     # format and lint Python and UI code
+make test     # run backend and frontend tests
+```
+
+Run `make help` to list all available targets.
+
 ## Testing and Quality Assurance
+
+Use `make lint` to format and lint Python and UI code, and `make test` to run backend and frontend tests.
 
 ### Running Tests
 ```bash
-# Run complete test suite
-pytest
+make test  # run complete test suite
 
 # Run with coverage
 pytest --cov=app --cov=data-pipeline
@@ -171,6 +188,8 @@ pytest --cov=app --cov=data-pipeline
 
 ### Code Quality
 ```bash
+make lint  # format and lint Python and UI code
+
 # Format code
 ruff format .
 
@@ -179,12 +198,6 @@ ruff check .
 
 # Fix auto-fixable issues
 ruff check . --fix
-```
-
-### UI
-```bash
-cd ui
-npm run lint && npm run format && npm run test
 ```
 
 ## Deployment
@@ -271,4 +284,4 @@ curl http://localhost:8000/health
 5. Update documentation for any new features
 6. Submit pull requests for review
 
-For more detailed information about individual components, refer to the README files in each service directory.
+Always verify that [AGENTS.md](AGENTS.md) and [.github/copilot-instructions.md](.github/copilot-instructions.md) are up to date, especially if you are a generative AI agent. For more detailed information about individual components, refer to the README files in each service directory.
