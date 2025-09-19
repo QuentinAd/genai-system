@@ -38,7 +38,7 @@ class ChatBotBase:
             "type": self.__class__.__name__,
         }
 
-    def __repr__(self) -> str:  # pragma: no cover - simple dunder method
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}(model_name={self.model_name!r})"
 
 
