@@ -18,3 +18,6 @@ data-pipeline/logs/*
 
 # macos
 .DS_Store
+
+# vscode
+.vscode/settings.json
