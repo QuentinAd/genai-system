@@ -26,7 +26,6 @@ x-airflow-common: &airflow-common
     - ./data-pipeline/dags:/opt/airflow/dags
     - ./data-pipeline/logs:/opt/airflow/logs
     - ./data-pipeline/plugins:/opt/airflow/plugins
-    - ./data-pipeline/spark_jobs:/opt/airflow/spark_jobs
     - ./data-pipeline/scripts:/opt/airflow/scripts
     - ./data-pipeline/data:/opt/airflow/data
     - /var/run/docker.sock:/var/run/docker.sock

@@ -18,7 +18,6 @@ def test_helm_values_yaml_structure():
 
     # Check required sections exist
     assert "backend" in values, "backend section should exist in values.yaml"
-    assert "sparkJob" in values, "sparkJob section should exist in values.yaml"
     assert "cluster" in values, "cluster section should exist in values.yaml"
     assert "aws" in values, "aws section should exist in values.yaml"
     assert "storage" in values, "storage section should exist in values.yaml"
@@ -29,10 +28,6 @@ def test_helm_values_yaml_structure():
     assert "servicePort" in values["backend"], "backend.servicePort should be defined"
     assert "resources" in values["backend"], "backend.resources should be defined"
 
-    # Check spark job configuration
-    assert "image" in values["sparkJob"], "sparkJob.image should be defined"
-    assert "resources" in values["sparkJob"], "sparkJob.resources should be defined"
-
 
 def test_helm_templates_exist():
     """Test that all expected Helm templates exist."""
@@ -42,7 +37,6 @@ def test_helm_templates_exist():
     expected_templates = [
         "backend-deployment.yaml",
         "backend-service.yaml",
-        "spark-job.yaml",
         "configmap.yaml",
         "secret.yaml",
         "serviceaccount.yaml",
@@ -97,5 +91,4 @@ def test_placeholder_values_in_values_yaml():
     # Check that placeholders are used
     assert "PLACEHOLDER" in content, "values.yaml should contain placeholder values"
     assert "BACKEND_IMAGE_PLACEHOLDER" in content, "Should use backend image placeholder"
-    assert "SPARK_IMAGE_PLACEHOLDER" in content, "Should use spark image placeholder"
     assert "EKS_CLUSTER_NAME_PLACEHOLDER" in content, "Should use cluster name placeholder"

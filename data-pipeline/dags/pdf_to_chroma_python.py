@@ -46,7 +46,7 @@ DEFAULT_ARGS = {
 }
 
 with DAG(
-    dag_id="pdf_to_chroma_python",
+    dag_id="pdf_to_chroma_python_python",
     default_args=DEFAULT_ARGS,
     schedule=None,
     description="PDF to ChromaDB index using pure Python",
