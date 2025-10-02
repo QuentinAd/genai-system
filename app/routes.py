@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, AsyncGenerator
 
-from quart import Blueprint, Response, jsonify, request
+from quart import Blueprint, Response, current_app, jsonify, request
 
 from .decorators import log_call, validate
 from .schema import ChatInput
@@ -61,6 +61,11 @@ def create_chat_blueprint(chatbot: ChatBotBase) -> Blueprint:
             allowed_events = sorted(allowed_set)
         else:
             allowed_events = None
+
+        include_log = ",".join(allowed_events) if allowed_events else "<all>"
+        current_app.logger.debug(
+            "chat_endpoint stream_mode=%s include=%s", stream_mode, include_log
+        )
 
         async def event_iter():
             async for event in chatbot.stream_events(

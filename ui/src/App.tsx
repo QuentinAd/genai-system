@@ -17,10 +17,17 @@ function getBackendBase(): string {
   return typeof candidate === "string" ? candidate.replace(/\/$/, "") : "";
 }
 const BACKEND_URL = getBackendBase();
+interface ChatEvent {
+  name: string;
+  data: unknown;
+  at: number;
+}
+
 interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: number;
+  events?: ChatEvent[];
 }
 
 function isAbortError(err: unknown): boolean {
@@ -30,6 +37,26 @@ function isAbortError(err: unknown): boolean {
     "name" in err &&
     (err as { name?: string }).name === "AbortError"
   );
+}
+
+function formatEventData(data: unknown): string {
+  if (typeof data === "string") return data;
+  if (data == null) return "";
+  try {
+    return JSON.stringify(data, null, 2);
+  } catch {
+    return String(data);
+  }
+}
+
+function summariseEvent(data: unknown): string {
+  if (typeof data === "string") return data;
+  if (data == null) return "";
+  try {
+    return JSON.stringify(data);
+  } catch {
+    return String(data);
+  }
 }
 
 function App() {
@@ -42,6 +69,7 @@ function App() {
         ? (JSON.parse(raw) as Message[]).map((m, i) => ({
             ...m,
             timestamp: m.timestamp ?? base + i * 1000,
+            events: Array.isArray(m.events) ? m.events : [],
           }))
         : [];
     } catch {
@@ -57,6 +85,7 @@ function App() {
     }
   });
   const [controller, setController] = useState<AbortController | null>(null);
+  const [latestEvent, setLatestEvent] = useState<string>("");
   const endRef = useRef<HTMLDivElement | null>(null);
   const saveTimeout = useRef<number | undefined>(undefined);
 
@@ -97,51 +126,121 @@ function App() {
       { role: "user", content: text, timestamp: Date.now() },
     ]);
     setLoading(true);
+    setLatestEvent("");
 
     const aborter = new AbortController();
     setController(aborter);
 
     try {
-    const url = BACKEND_URL ? `${BACKEND_URL}/chat` : "/chat";
-    const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const url = BACKEND_URL ? `${BACKEND_URL}/chat?stream=events` : "/chat?stream=events";
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
         signal: aborter.signal,
       });
       const reader = resp.body?.getReader();
       const decoder = new TextDecoder();
       let assistant = "";
+      let buffer = "";
       const assistantTimestamp = Date.now();
+      let assistantEvents: ChatEvent[] = [];
+
+      const updateAssistant = (
+        updater: (existing: Message | undefined) => Message,
+        ensureCreate = false,
+      ) => {
+        setMessages((prev) => {
+          const index = prev.findIndex(
+            (msg) => msg.role === "assistant" && msg.timestamp === assistantTimestamp,
+          );
+          if (index === -1 && !ensureCreate) {
+            return prev;
+          }
+          const updated = updater(index >= 0 ? prev[index] : undefined);
+          const copy = [...prev];
+          if (index >= 0) {
+            copy[index] = updated;
+          } else {
+            copy.push(updated);
+          }
+          return copy;
+        });
+      };
+
+      const processLine = (line: string) => {
+        if (!line) return;
+        try {
+          const evt = JSON.parse(line) as { event?: string; data?: unknown };
+          if (evt.event === "token") {
+            const tok = typeof evt.data === "string" ? evt.data : "";
+            if (!tok) return;
+            assistant += tok;
+            updateAssistant(
+              () => ({
+                role: "assistant",
+                content: assistant,
+                timestamp: assistantTimestamp,
+                events: assistantEvents.map((item) => ({ ...item })),
+              }),
+              true,
+            );
+          } else {
+            const name = typeof evt.event === "string" ? evt.event : "event";
+            const newEvent: ChatEvent = {
+              name,
+              data: evt.data ?? null,
+              at: Date.now(),
+            };
+            assistantEvents = [...assistantEvents, newEvent];
+            const desc = summariseEvent(evt.data ?? null);
+            setLatestEvent(`${name}: ${desc}`);
+            updateAssistant((existing) => {
+              const baseContent = existing?.content ?? assistant;
+              return {
+                role: "assistant",
+                content: baseContent,
+                timestamp: assistantTimestamp,
+                events: assistantEvents.map((item) => ({ ...item })),
+              };
+            });
+          }
+        } catch {
+          /* ignore malformed event */
+        }
+      };
+
       if (reader) {
-        // In some test environments AbortController may be mocked without addEventListener
-        // Use optional chaining to avoid throwing and still allow Stop button to render.
         (aborter.signal as unknown as { addEventListener?: (type: string, cb: () => void) => void })
-          .addEventListener?.('abort', () => {
+          .addEventListener?.("abort", () => {
             void reader.cancel();
           });
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
-          assistant += decoder.decode(value, { stream: true });
-          setMessages((m) => {
-            const base = m;
-            const lastIsAssistant = base[base.length - 1]?.role === "assistant";
-            if (lastIsAssistant) {
-              const copy = [...base];
-              const last = copy[copy.length - 1];
-              copy[copy.length - 1] = { ...last, content: assistant };
-              return copy;
-            }
-            return [
-              ...base,
-              {
-                role: "assistant",
-                content: assistant,
-                timestamp: assistantTimestamp,
-              },
-            ];
-          });
+          buffer += decoder.decode(value, { stream: true });
+          let idx: number;
+          // eslint-disable-next-line no-cond-assign
+          while ((idx = buffer.indexOf("\n")) !== -1) {
+            const line = buffer.slice(0, idx).trim();
+            buffer = buffer.slice(idx + 1);
+            processLine(line);
+          }
+        }
+        const remainder = buffer.trim();
+        if (remainder) {
+          processLine(remainder);
+        }
+        if (assistantEvents.length || assistant) {
+          updateAssistant(
+            (existing) => ({
+              role: "assistant",
+              content: assistant || existing?.content || "",
+              timestamp: assistantTimestamp,
+              events: assistantEvents.map((item) => ({ ...item })),
+            }),
+            Boolean(assistantEvents.length || assistant),
+          );
         }
       }
     } catch (e: unknown) {
@@ -158,6 +257,7 @@ function App() {
     } finally {
       setLoading(false);
       setController(null);
+      setLatestEvent("");
     }
   }
 
@@ -201,7 +301,18 @@ function App() {
           <h1 className="text-lg font-semibold tracking-tight">GenAI Chat</h1>
           <div className="flex items-center gap-2">
             {loading && (
-              <span className="text-xs text-slate-500">Generating…</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">Generating…</span>
+                {latestEvent ? (
+                  <span
+                    aria-live="polite"
+                    className="text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 rounded px-2 py-1 animate-pulse"
+                    title={latestEvent}
+                  >
+                    {latestEvent}
+                  </span>
+                ) : null}
+              </div>
             )}
             {loading ? (
               <button
@@ -242,6 +353,28 @@ function App() {
                     >
                       {m.content}
                     </ReactMarkdown>
+                    {m.events?.length ? (
+                      <details className="mt-3 space-y-2">
+                        <summary className="text-xs font-medium text-slate-500 cursor-pointer">
+                          Events ({m.events.length})
+                        </summary>
+                        <ul className="space-y-2 text-xs not-prose">
+                          {m.events.map((evt) => (
+                            <li
+                              key={`${evt.at}-${evt.name}`}
+                              className="rounded-md border border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 p-2"
+                            >
+                              <div className="font-semibold text-slate-600 dark:text-slate-300">
+                                {evt.name}
+                              </div>
+                              <pre className="mt-1 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200">
+                                {formatEventData(evt.data)}
+                              </pre>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
                   </div>
                 )}
               </div>

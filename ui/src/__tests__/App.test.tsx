@@ -27,18 +27,20 @@ describe('App', () => {
     await userEvent.type(input, 'Hello')
     await userEvent.click(screen.getByText('Send'))
     await screen.findByText('Stop')
-    expect(fetch).toHaveBeenCalledWith('http://example.com/chat', expect.any(Object))
+    expect(fetch).toHaveBeenCalledWith('/chat?stream=events', expect.any(Object))
     await userEvent.click(screen.getByText('Stop'))
     expect(cancel).toHaveBeenCalled()
   })
 
-  it('updates assistant message as stream arrives', async () => {
+  it('updates assistant message with token events from NDJSON stream', async () => {
     const encoder = new TextEncoder()
     let controller!: ReadableStreamDefaultController<Uint8Array>
     const stream = new ReadableStream<Uint8Array>({
       start(c) {
         controller = c
-        c.enqueue(encoder.encode('Hi'))
+        // send a start event line, then two token lines
+        c.enqueue(encoder.encode('{"event":"on_chat_model_start","data":{"input":"Hello"}}\n'))
+        c.enqueue(encoder.encode('{"event":"token","data":"Hi"}\n'))
       },
     })
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ body: stream })) as unknown as typeof fetch)
@@ -48,10 +50,16 @@ describe('App', () => {
     await userEvent.type(input, 'Hello{enter}')
     await screen.findByText('Hi')
     await act(async () => {
-      controller.enqueue(encoder.encode(' there'))
+      controller.enqueue(encoder.encode('{"event":"token","data":" there"}\n'))
+      controller.enqueue(encoder.encode('{"event":"on_chat_model_end","data":{"output":"Hithere"}}\n'))
       controller.close()
     })
     await screen.findByText('Hi there')
+    const summary = await screen.findByText('Events (2)')
+    await userEvent.click(summary)
+    await screen.findByText('on_chat_model_start')
+    await screen.findByText(/"input"\s*:\s*"Hello"/)
+    await screen.findByText('on_chat_model_end')
   })
 
   it('stop button aborts the request', async () => {

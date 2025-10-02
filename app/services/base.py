@@ -254,8 +254,8 @@ class ChatBotBase:
         async for token in self.stream_chat(message, config=config):
             if not token:
                 continue
-            collected_tokens.append(token)
             if should_stream_tokens:
+                collected_tokens.append(token)
                 logger.debug("fallback token=%s", token)
                 yield token
                 emitted = True
@@ -265,7 +265,11 @@ class ChatBotBase:
                 json.dumps(
                     {
                         "event": "on_chat_model_end",
-                        "data": {"output": "".join(collected_tokens)},
+                        "data": {
+                            "output": "".join(collected_tokens)
+                            if collected_tokens and should_stream_tokens
+                            else message,
+                        },
                     }
                 )
             )
