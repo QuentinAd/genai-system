@@ -10,8 +10,8 @@ backend:
       cpu: 250m
       memory: 256Mi
 
-sparkJob:
-  image: "SPARK_IMAGE_PLACEHOLDER"
+etlJob:
+  image: "ETL_IMAGE_PLACEHOLDER"
   resources:
     limits:
       cpu: 1000m

@@ -7,22 +7,12 @@ This repository provides a simple Docker Compose setup for running the Airflow D
 
 ## Quick start
 ```bash
-# Build the Spark image used by the DAG
-docker compose build spark
-
 # Start Postgres and Airflow (web UI available on http://localhost:8080)
 docker compose up postgres airflow
 ```
 
-The DAG `etl_csv_to_parquet_k8s` will run the Spark job using `DockerOperator` when the `LOCAL_AIRFLOW` environment variable is set (configured in `docker-compose.yaml`).
+## PDF to Chroma Example
 
-## Kubernetes Job
-The `helm/` chart also includes a `Job` manifest for running the Spark ETL on a
-Kubernetes cluster. Provide the appropriate container image with the
-`sparkJob.image` value when installing the chart.
-
-## PDF to FAISS Example
-
-An additional DAG `pdf_to_faiss` demonstrates creating OpenAI embeddings from a PDF
-and storing them in a FAISS index. The sample PDF should be placed in
+An additional DAG `pdf_to_chroma_python` demonstrates creating OpenAI embeddings from a PDF
+and storing them in a Chroma index. The sample PDF should be placed in
 `data-pipeline/data/input.pdf` before running the DAG.

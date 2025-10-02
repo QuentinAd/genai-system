@@ -18,7 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     outputs:
-      spark-image: ${{ steps.images.outputs.spark-image }}
       backend-image: ${{ steps.images.outputs.backend-image }}
     steps:
       - name: Checkout code
@@ -52,12 +51,12 @@ jobs:
         with:
           mask-password: true
 
-      - name: Build and Push Spark ETL Docker image
+      - name: Build and Push ETL Docker image
         run: |
-          ECR_SPARK_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/spark-etl:${{ env.IMAGE_TAG }}
+          ECR_ETL_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/etl:${{ env.IMAGE_TAG }}
           docker buildx build \
             --platform linux/amd64 \
-            -t $ECR_SPARK_URI \
+            -t $ECR_ETL_URI \
             -f data-pipeline/docker/Dockerfile \
             --push \
             data-pipeline
@@ -75,7 +74,7 @@ jobs:
       - name: Set image outputs
         id: images
         run: |
-          echo "spark-image=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/spark-etl:${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
+          echo "etl-image=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/etl:${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
           echo "backend-image=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/genai-app:${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
 
   deploy-dags:
@@ -142,7 +141,7 @@ jobs:
         run: |
           helm upgrade --install genai-system ./helm \
             --set backend.image="${{ needs.build-and-push.outputs.backend-image }}" \
-            --set sparkJob.image="${{ needs.build-and-push.outputs.spark-image }}" \
+            --set etlJob.image="${{ needs.build-and-push.outputs.etl-image }}" \
             --set cluster.name="${{ steps.terraform-outputs.outputs.eks-cluster-name }}" \
             --set cluster.region="${{ env.AWS_REGION }}" \
             --set aws.region="${{ env.AWS_REGION }}" \

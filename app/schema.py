@@ -1,7 +1,11 @@
-from pydantic import BaseModel, constr
+from typing import Annotated
+from pydantic import BaseModel, StringConstraints
 
 
 class ChatInput(BaseModel):
     """Schema for chat requests."""
 
-    message: constr(min_length=1, strip_whitespace=True)
+    message: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1),
+    ]

@@ -65,14 +65,14 @@ def test_cd_workflow_uses_helm():
             helm_deploy_found = True
             assert "helm upgrade --install" in step["run"], "Should use helm upgrade --install"
             assert "--set backend.image=" in step["run"], "Should set backend image dynamically"
-            assert "--set sparkJob.image=" in step["run"], "Should set spark image dynamically"
+            assert "--set etlJob.image=" in step["run"], "Should set etl image dynamically"
 
     assert helm_install_found, "Should install Helm"
     assert helm_deploy_found, "Should deploy with Helm"
 
 
 def test_cd_workflow_builds_both_images():
-    """Test that CD workflow builds both backend and Spark images."""
+    """Test that CD workflow builds both backend and ETL images."""
     workflows_dir = Path(__file__).parent.parent.parent / ".github" / "workflows"
     cd_workflow = workflows_dir / "cd.yaml"
 
@@ -82,19 +82,19 @@ def test_cd_workflow_builds_both_images():
     build_job = workflow["jobs"]["build-and-push"]
     steps = build_job["steps"]
 
-    spark_build_found = False
+    etl_build_found = False
     backend_build_found = False
 
     for step in steps:
         step_name = step.get("name", "")
-        if "Spark ETL Docker image" in step_name:
-            spark_build_found = True
-            assert "spark-etl:" in step["run"], "Should build spark-etl image"
+        if "ETL Docker image" in step_name:
+            etl_build_found = True
+            assert "etl:" in step["run"], "Should build etl image"
         elif "Backend Docker image" in step_name:
             backend_build_found = True
             assert "genai-app:" in step["run"], "Should build genai-app image"
 
-    assert spark_build_found, "Should build Spark ETL image"
+    assert etl_build_found, "Should build ETL image"
     assert backend_build_found, "Should build backend image"
 
 
@@ -117,9 +117,9 @@ def test_workflows_have_proper_triggers():
 
     assert "workflow_dispatch:" in cd_content, "CD workflow should allow manual dispatch"
     assert "workflow_run:" in cd_content, "CD workflow should trigger after infrastructure workflow"
-    assert "Infrastructure Deployment Pipeline" in cd_content, (
-        "Should reference infrastructure workflow"
-    )
+    assert (
+        "Infrastructure Deployment Pipeline" in cd_content
+    ), "Should reference infrastructure workflow"
 
 
 def test_ci_workflow_unchanged():

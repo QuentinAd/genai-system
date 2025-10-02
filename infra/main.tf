@@ -31,10 +31,10 @@ module "mwaa" {
   depends_on = [module.vpc]
 }
 
-module "ecr_spark" {
+module "ecr_etl" {
   source       = "./ecr"
   project_name = var.project_name
-  ecr_repo     = "spark-etl"
+  ecr_repo     = "etl"
 }
 
 module "ecr_backend" {
@@ -52,11 +52,11 @@ output "eks_cluster_name" { value = module.eks.cluster_name }
 output "eks_cluster_endpoint" { value = module.eks.cluster_endpoint }
 output "eks_cluster_version" { value = module.eks.cluster_version }
 
-output "ecr_spark_repository_url" { value = module.ecr_spark.repository_url }
-output "ecr_spark_repository_name" { value = module.ecr_spark.repository_name }
+output "ecr_etl_repository_url" { value = module.ecr_etl.repository_url }
+output "ecr_etl_repository_name" { value = module.ecr_etl.repository_name }
 output "ecr_backend_repository_url" { value = module.ecr_backend.repository_url }
 output "ecr_backend_repository_name" { value = module.ecr_backend.repository_name }
-output "ecr_registry_id" { value = module.ecr_spark.registry_id }
+output "ecr_registry_id" { value = module.ecr_etl.registry_id }
 
 output "mwaa_env_name" { value = module.mwaa.environment_name }
 output "dags_bucket" { value = module.s3_data.dags_bucket_name }

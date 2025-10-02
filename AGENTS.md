@@ -21,8 +21,8 @@ Follow the rules in this document when creating or modifying code anywhere in th
 
 ## Data Pipeline Service
 
-* Located in `data-pipeline/`. Use Spark jobs and Airflow DAGs to process data that may be stored in S3 or indexed in vector databases such as FAISS, Pinecone, Weaviate, Qdrant, or MongoDB.
-* Add unit tests in `data-pipeline/tests` for Spark code and DAG logic.
+* Located in `data-pipeline/`. Use Airflow DAGs to process data stored locally in `data-pipeline/data`.
+* Add unit tests in `data-pipeline/tests` for DAG code logic.
 
 ## Backend Service
 

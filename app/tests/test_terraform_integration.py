@@ -24,7 +24,7 @@ def test_terraform_main_has_outputs():
         "eks_cluster_name",
         "eks_cluster_endpoint",
         "eks_cluster_version",
-        "ecr_spark_repository_url",
+        "ecr_etl_repository_url",
         "ecr_backend_repository_url",
         "mwaa_env_name",
         "dags_bucket",
@@ -39,7 +39,7 @@ def test_terraform_modules_exist():
     """Test that all required Terraform modules exist."""
     infra_dir = Path(__file__).parent.parent.parent / "infra"
 
-    expected_modules = ["vpc", "eks", "s3", "ecr", "mwaa", "irsa"]
+    expected_modules = ["vpc", "eks", "s3", "ecr", "mwaa"]
 
     for module in expected_modules:
         module_dir = infra_dir / module
@@ -80,16 +80,16 @@ def test_ecr_module_has_outputs():
 
 
 def test_main_tf_has_dual_ecr_modules():
-    """Test that main.tf defines both ECR modules for spark and backend."""
+    """Test that main.tf defines both ECR modules for etl and backend."""
     infra_dir = Path(__file__).parent.parent.parent / "infra"
     main_file = infra_dir / "main.tf"
 
     with open(main_file, "r") as f:
         content = f.read()
 
-    assert 'module "ecr_spark"' in content, "Should define ecr_spark module"
+    assert 'module "ecr_etl"' in content, "Should define ecr_etl module"
     assert 'module "ecr_backend"' in content, "Should define ecr_backend module"
-    assert 'ecr_repo     = "spark-etl"' in content, "Spark module should use spark-etl repo name"
+    assert 'ecr_repo     = "etl"' in content, "ETL module should use etl repo name"
     assert 'ecr_repo     = "genai-app"' in content, "Backend module should use genai-app repo name"
 
 
@@ -103,7 +103,7 @@ def test_terraform_file_formatting():
         content = f.read()
 
     # Check for common formatting issues
-    assert not re.search(r"depends_on = \[ [^]]+\]", content), (
-        "depends_on should be formatted correctly"
-    )
+    assert not re.search(
+        r"depends_on = \[ [^]]+\]", content
+    ), "depends_on should be formatted correctly"
     assert "depends_on = [module.vpc]" in content, "depends_on should use proper formatting"

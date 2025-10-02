@@ -4,7 +4,7 @@ This repository contains a comprehensive data pipeline service, backend service,
 
 ## Architecture Overview
 
-- **data-pipeline/** – Airflow DAGs and PySpark jobs running on Kubernetes
+- **data-pipeline/** – Airflow DAGs jobs
 - **app/** – Quart-based backend providing a streaming chat endpoint
 - **infra/** – Terraform modules for AWS resources (VPC, EKS, S3, ECR, MWAA)
 - **helm/** – Kubernetes deployment charts with dynamic configuration
@@ -18,7 +18,7 @@ The infrastructure is provisioned using Terraform and includes:
 - **VPC**: Custom VPC with public and private subnets across multiple AZs
 - **EKS**: Managed Kubernetes cluster for running containerized workloads
 - **S3**: Buckets for data storage and Airflow DAG management
-- **ECR**: Container registries for backend and Spark ETL images
+- **ECR**: Container registries for backend and DAG ETL images
 - **MWAA**: Managed Airflow for orchestrating data pipelines
 - **IAM**: Fine-grained roles and policies for secure access
 
@@ -37,7 +37,6 @@ infra/
 ### Key Terraform Outputs
 The infrastructure exports the following outputs for integration with CI/CD:
 - `eks_cluster_name` - EKS cluster name for kubectl configuration
-- `ecr_spark_repository_url` - Spark ETL container registry URL
 - `ecr_backend_repository_url` - Backend application registry URL
 - `dags_bucket` - S3 bucket name for Airflow DAGs
 - `data_bucket` - S3 bucket name for processed data
@@ -83,7 +82,6 @@ The Helm charts dynamically consume Terraform outputs for seamless deployment:
 ### Dynamic Configuration
 Instead of hardcoded values, the charts use placeholders that are populated at deployment time:
 - `BACKEND_IMAGE_PLACEHOLDER` → ECR backend image URI
-- `SPARK_IMAGE_PLACEHOLDER` → ECR Spark ETL image URI
 - `EKS_CLUSTER_NAME_PLACEHOLDER` → Actual EKS cluster name
 - `AWS_REGION_PLACEHOLDER` → Target AWS region
 
@@ -91,10 +89,9 @@ Instead of hardcoded values, the charts use placeholders that are populated at d
 The Helm chart deploys:
 - **Deployment**: Backend API service with health checks and resource limits
 - **Service**: ClusterIP service exposing the backend
-- **Job**: Spark ETL job for data processing
+- **Job**: ETL job for data processing
 - **ConfigMap**: Non-sensitive configuration values
 - **Secret**: Sensitive credentials (API keys, AWS credentials)
-- **ServiceAccount**: RBAC configuration for Spark jobs
 
 ### Configuration Management
 - **ConfigMaps**: Store environment-specific settings like bucket names, cluster details
@@ -126,9 +123,6 @@ docker run -p 8000:8000 --env-file .env genai-app
 
 ### Data Pipeline (Local Airflow)
 ```bash
-# Build the Spark image
-docker compose build spark
-
 # Start Airflow (web UI at http://localhost:8080)
 docker compose up airflow-init && docker compose up
 ```
@@ -211,7 +205,6 @@ aws eks update-kubeconfig --name <cluster-name> --region <region>
 # Deploy with dynamic values
 helm upgrade --install genai-system ./helm \
   --set backend.image="<ecr-uri>/genai-app:latest" \
-  --set sparkJob.image="<ecr-uri>/spark-etl:latest" \
   --set cluster.name="<cluster-name>" \
   --set aws.region="<region>" \
   --namespace genai-system \
