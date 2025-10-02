@@ -25,7 +25,6 @@ Always reference these instructions first and fallback to search or bash command
   - Dev server: from `ui/` run `npm run dev` (Vite). Proxy to backend is configured in `vite.config.ts` and respects `VITE_BACKEND_URL`.
   - Build: from `ui/` run `npm run build` then `npm run preview` to serve static build
 - Run Airflow locally:
-  - `docker compose build spark` -- builds Spark image for DAG. NEVER CANCEL. Can take 3-15 minutes.
   - `docker compose up airflow-init && docker compose up` -- starts full Airflow stack
   - Web UI: http://localhost:8080 (admin/admin)
 
@@ -64,9 +63,8 @@ The following are outputs from frequently run commands. Reference them instead o
 │   ├── eslint.config.js # ESLint flat config
 │   ├── vitest.setup.ts  # Vitest setup (jest-dom, polyfills)
 │   └── package.json     # UI dependencies and scripts
-├── data-pipeline/       # Airflow + Spark ETL
+├── data-pipeline/       # Airflow DAG ETL
 │   ├── dags/            # Airflow DAGs
-│   ├── spark_jobs/      # PySpark scripts
 │   ├── tests/           # Pipeline tests
 │   └── requirements.txt # Pipeline dependencies
 ├── infra/               # Terraform infrastructure
@@ -92,7 +90,6 @@ The following are outputs from frequently run commands. Reference them instead o
 
 **Data Pipeline (data-pipeline/)**
 - Airflow DAGs for orchestration
-- PySpark jobs for data processing
 - Docker-based local development
 - Tests in data-pipeline/tests/unit/
 
@@ -152,7 +149,6 @@ docker compose up -d app ui
 
 Local Airflow development:
 ```bash
-docker compose build spark        # NEVER CANCEL. Takes 3-15 minutes. Set timeout to 20+ minutes.
 docker compose up airflow-init && docker compose up
 # Access http://localhost:8080 with admin/admin
 ```
@@ -186,7 +182,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 **Unit Tests:**
 - app/tests/ - Backend service tests with async mocking
-- data-pipeline/tests/unit/ - Spark job and DAG tests
+- data-pipeline/tests/unit/ - DAG tests
 - ui/src/__tests__/ - UI unit tests with Vitest + Testing Library
 
 **Integration Tests:**
@@ -199,8 +195,7 @@ curl -X POST -H "Content-Type: application/json" \
 2. Execute test suites and verify all pass: `pytest && cd ui && npm run test`
 3. Start backend service and test chat endpoint: Start backend with DummyChatBot, then `curl -X POST -H "Content-Type: application/json" -d '{"message":"Hello"}' http://localhost:8000/chat`
 4. Start UI dev server and send a test message; verify markdown rendering and theme toggle
-5. Build Docker images (if network allows): `docker compose build spark`
-6. Start Airflow stack and verify DAG loading: `docker compose up`
+5. Start Airflow stack and verify DAG loading: `docker compose up`
 
 ### Timing Expectations
 
@@ -216,7 +211,6 @@ curl -X POST -H "Content-Type: application/json" \
 - Terraform commands require terraform binary installation (not available in all environments)
 - OpenAI integration requires valid API key (use DummyChatBot for testing)
 - Some tests skip when Airflow not installed (expected behavior)
-- PySpark jobs require Spark runtime environment or Docker for full testing
 - UI container uses Debian-based Node to avoid musl optional dependency issues with Rollup
 
 ### CI/CD Pipeline

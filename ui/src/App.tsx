@@ -1,126 +1,246 @@
-import { useEffect, useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import remarkBreaks from 'remark-breaks'
-import rehypeHighlight from 'rehype-highlight'
-import 'highlight.js/styles/github-dark-dimmed.css'
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
+import rehypeHighlight from "rehype-highlight";
+import "highlight.js/styles/github-dark-dimmed.css";
 
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/$/, '')
+// Prefer the Vite proxy in dev (relative path) to avoid CORS; use env in prod/tests
+function getBackendBase(): string {
+  const viteEnv = (import.meta as unknown as { env?: { VITE_BACKEND_URL?: unknown; DEV?: boolean } }).env;
+  const isDev = Boolean(viteEnv?.DEV);
+  // If running in a browser and Vite dev server, use relative path so the proxy handles routing
+  if (typeof window !== "undefined" && isDev) return "";
+
+  const nodeEnv = (globalThis as unknown as { process?: { env?: { VITE_BACKEND_URL?: unknown } } }).process?.env;
+  const candidate = viteEnv?.VITE_BACKEND_URL ?? nodeEnv?.VITE_BACKEND_URL;
+  return typeof candidate === "string" ? candidate.replace(/\/$/, "") : "";
+}
+const BACKEND_URL = getBackendBase();
+interface ChatEvent {
+  name: string;
+  data: unknown;
+  at: number;
+}
 
 interface Message {
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: number
+  role: "user" | "assistant";
+  content: string;
+  timestamp: number;
+  events?: ChatEvent[];
 }
 
 function isAbortError(err: unknown): boolean {
   return (
-    typeof err === 'object' &&
+    typeof err === "object" &&
     err !== null &&
-    'name' in err &&
-    (err as { name?: string }).name === 'AbortError'
-  )
+    "name" in err &&
+    (err as { name?: string }).name === "AbortError"
+  );
+}
+
+function formatEventData(data: unknown): string {
+  if (typeof data === "string") return data;
+  if (data == null) return "";
+  try {
+    return JSON.stringify(data, null, 2);
+  } catch {
+    return String(data);
+  }
+}
+
+function summariseEvent(data: unknown): string {
+  if (typeof data === "string") return data;
+  if (data == null) return "";
+  try {
+    return JSON.stringify(data);
+  } catch {
+    return String(data);
+  }
 }
 
 function App() {
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
-      const raw = localStorage.getItem('chat_messages')
-      const base = Date.now()
+      const raw = localStorage.getItem("chat_messages");
+      const base = Date.now();
       return raw
         ? (JSON.parse(raw) as Message[]).map((m, i) => ({
             ...m,
             timestamp: m.timestamp ?? base + i * 1000,
+            events: Array.isArray(m.events) ? m.events : [],
           }))
-        : []
+        : [];
     } catch {
-      return []
+      return [];
     }
-  })
-  const [loading, setLoading] = useState(false)
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+  });
+  const [loading, setLoading] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
     try {
-      return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark'
+      return (localStorage.getItem("theme") as "dark" | "light") || "dark";
     } catch {
-      return 'dark'
+      return "dark";
     }
-  })
-  const [controller, setController] = useState<AbortController | null>(null)
-  const endRef = useRef<HTMLDivElement | null>(null)
-  const saveTimeout = useRef<number | undefined>(undefined)
+  });
+  const [controller, setController] = useState<AbortController | null>(null);
+  const [latestEvent, setLatestEvent] = useState<string>("");
+  const endRef = useRef<HTMLDivElement | null>(null);
+  const saveTimeout = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   useEffect(() => {
-    const root = document.documentElement
-    if (theme === 'dark') root.classList.add('dark')
-    else root.classList.remove('dark')
+    const root = document.documentElement;
+    if (theme === "dark") root.classList.add("dark");
+    else root.classList.remove("dark");
     try {
-      localStorage.setItem('theme', theme)
+      localStorage.setItem("theme", theme);
     } catch {
       /* ignore */
     }
-  }, [theme])
+  }, [theme]);
 
   useEffect(() => {
-    if (messages.length === 0) return
-    window.clearTimeout(saveTimeout.current)
+    if (messages.length === 0) return;
+    window.clearTimeout(saveTimeout.current);
     saveTimeout.current = window.setTimeout(() => {
       try {
-        localStorage.setItem('chat_messages', JSON.stringify(messages))
+        localStorage.setItem("chat_messages", JSON.stringify(messages));
       } catch {
         /* ignore */
       }
-    }, 300)
-    return () => window.clearTimeout(saveTimeout.current)
-  }, [messages])
+    }, 300);
+    return () => window.clearTimeout(saveTimeout.current);
+  }, [messages]);
 
   async function send() {
-    if (!input.trim() || loading) return
-    const text = input
-    setInput('')
-    setMessages((m) => [...m, { role: 'user', content: text, timestamp: Date.now() }])
-    setLoading(true)
+    if (!input.trim() || loading) return;
+    const text = input;
+    setInput("");
+    setMessages((m) => [
+      ...m,
+      { role: "user", content: text, timestamp: Date.now() },
+    ]);
+    setLoading(true);
+    setLatestEvent("");
 
-    const aborter = new AbortController()
-    setController(aborter)
+    const aborter = new AbortController();
+    setController(aborter);
 
     try {
-      const resp = await fetch(`${BACKEND_URL}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const url = BACKEND_URL ? `${BACKEND_URL}/chat?stream=events` : "/chat?stream=events";
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
         signal: aborter.signal,
-      })
-      const reader = resp.body?.getReader()
-      const decoder = new TextDecoder()
-      let assistant = ''
-      const assistantTimestamp = Date.now()
+      });
+      const reader = resp.body?.getReader();
+      const decoder = new TextDecoder();
+      let assistant = "";
+      let buffer = "";
+      const assistantTimestamp = Date.now();
+      let assistantEvents: ChatEvent[] = [];
+
+      const updateAssistant = (
+        updater: (existing: Message | undefined) => Message,
+        ensureCreate = false,
+      ) => {
+        setMessages((prev) => {
+          const index = prev.findIndex(
+            (msg) => msg.role === "assistant" && msg.timestamp === assistantTimestamp,
+          );
+          if (index === -1 && !ensureCreate) {
+            return prev;
+          }
+          const updated = updater(index >= 0 ? prev[index] : undefined);
+          const copy = [...prev];
+          if (index >= 0) {
+            copy[index] = updated;
+          } else {
+            copy.push(updated);
+          }
+          return copy;
+        });
+      };
+
+      const processLine = (line: string) => {
+        if (!line) return;
+        try {
+          const evt = JSON.parse(line) as { event?: string; data?: unknown };
+          if (evt.event === "token") {
+            const tok = typeof evt.data === "string" ? evt.data : "";
+            if (!tok) return;
+            assistant += tok;
+            updateAssistant(
+              () => ({
+                role: "assistant",
+                content: assistant,
+                timestamp: assistantTimestamp,
+                events: assistantEvents.map((item) => ({ ...item })),
+              }),
+              true,
+            );
+          } else {
+            const name = typeof evt.event === "string" ? evt.event : "event";
+            const newEvent: ChatEvent = {
+              name,
+              data: evt.data ?? null,
+              at: Date.now(),
+            };
+            assistantEvents = [...assistantEvents, newEvent];
+            const desc = summariseEvent(evt.data ?? null);
+            setLatestEvent(`${name}: ${desc}`);
+            updateAssistant((existing) => {
+              const baseContent = existing?.content ?? assistant;
+              return {
+                role: "assistant",
+                content: baseContent,
+                timestamp: assistantTimestamp,
+                events: assistantEvents.map((item) => ({ ...item })),
+              };
+            });
+          }
+        } catch {
+          /* ignore malformed event */
+        }
+      };
+
       if (reader) {
-        aborter.signal.addEventListener('abort', () => {
-          void reader.cancel()
-        })
+        (aborter.signal as unknown as { addEventListener?: (type: string, cb: () => void) => void })
+          .addEventListener?.("abort", () => {
+            void reader.cancel();
+          });
         while (true) {
-          const { value, done } = await reader.read()
-          if (done) break
-          assistant += decoder.decode(value, { stream: true })
-          setMessages((m) => {
-            const base = m
-            const lastIsAssistant = base[base.length - 1]?.role === 'assistant'
-            if (lastIsAssistant) {
-              const copy = [...base]
-              const last = copy[copy.length - 1]
-              copy[copy.length - 1] = { ...last, content: assistant }
-              return copy
-            }
-            return [
-              ...base,
-              { role: 'assistant', content: assistant, timestamp: assistantTimestamp },
-            ]
-          })
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let idx: number;
+          // eslint-disable-next-line no-cond-assign
+          while ((idx = buffer.indexOf("\n")) !== -1) {
+            const line = buffer.slice(0, idx).trim();
+            buffer = buffer.slice(idx + 1);
+            processLine(line);
+          }
+        }
+        const remainder = buffer.trim();
+        if (remainder) {
+          processLine(remainder);
+        }
+        if (assistantEvents.length || assistant) {
+          updateAssistant(
+            (existing) => ({
+              role: "assistant",
+              content: assistant || existing?.content || "",
+              timestamp: assistantTimestamp,
+              events: assistantEvents.map((item) => ({ ...item })),
+            }),
+            Boolean(assistantEvents.length || assistant),
+          );
         }
       }
     } catch (e: unknown) {
@@ -128,24 +248,33 @@ function App() {
         setMessages((m) => [
           ...m,
           {
-            role: 'assistant',
-            content: 'Error contacting server.',
+            role: "assistant",
+            content: "Error contacting server.",
             timestamp: Date.now(),
           },
-        ])
+        ]);
       }
     } finally {
-      setLoading(false)
-      setController(null)
+      setLoading(false);
+      setController(null);
+      setLatestEvent("");
     }
   }
 
   function stop() {
-    controller?.abort()
+    controller?.abort();
   }
 
-  function CodeBlock({ inline, className = '', children }: { inline?: boolean; className?: string; children?: React.ReactNode }) {
-    const code = String(children ?? '')
+  function CodeBlock({
+    inline,
+    className = "",
+    children,
+  }: {
+    inline?: boolean;
+    className?: string;
+    children?: React.ReactNode;
+  }) {
+    const code = String(children ?? "");
     return inline ? (
       <code className={className}>{children}</code>
     ) : (
@@ -162,7 +291,7 @@ function App() {
           <code>{code}</code>
         </pre>
       </div>
-    )
+    );
   }
 
   return (
@@ -171,17 +300,33 @@ function App() {
         <div className="mx-auto w-full max-w-3xl flex items-center justify-between">
           <h1 className="text-lg font-semibold tracking-tight">GenAI Chat</h1>
           <div className="flex items-center gap-2">
-            {loading && <span className="text-xs text-slate-500">Generating…</span>}
+            {loading && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">Generating…</span>
+                {latestEvent ? (
+                  <span
+                    aria-live="polite"
+                    className="text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 rounded px-2 py-1 animate-pulse"
+                    title={latestEvent}
+                  >
+                    {latestEvent}
+                  </span>
+                ) : null}
+              </div>
+            )}
             {loading ? (
-              <button className="rounded-md border px-2 py-1 text-sm border-red-600 text-red-600" onClick={stop}>
+              <button
+                className="rounded-md border px-2 py-1 text-sm border-red-600 text-red-600"
+                onClick={stop}
+              >
                 Stop
               </button>
             ) : null}
             <button
               className="rounded-md border px-2 py-1 text-sm border-slate-300 dark:border-slate-700"
-              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+              onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
             >
-              {theme === 'dark' ? 'Light' : 'Dark'} mode
+              {theme === "dark" ? "Light" : "Dark"} mode
             </button>
           </div>
         </div>
@@ -191,8 +336,11 @@ function App() {
         <div className="mx-auto w-full max-w-3xl h-full flex flex-col">
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-3">
             {messages.map((m, i) => (
-              <div key={`${i}-${m.timestamp}`} className={m.role === 'user' ? 'text-right' : 'text-left'}>
-                {m.role === 'user' ? (
+              <div
+                key={`${i}-${m.timestamp}`}
+                className={m.role === "user" ? "text-right" : "text-left"}
+              >
+                {m.role === "user" ? (
                   <span className="inline-block rounded-2xl px-3 py-2 max-w-[80%] break-words shadow-sm bg-brand-600 text-white">
                     {m.content}
                   </span>
@@ -205,6 +353,28 @@ function App() {
                     >
                       {m.content}
                     </ReactMarkdown>
+                    {m.events?.length ? (
+                      <details className="mt-3 space-y-2">
+                        <summary className="text-xs font-medium text-slate-500 cursor-pointer">
+                          Events ({m.events.length})
+                        </summary>
+                        <ul className="space-y-2 text-xs not-prose">
+                          {m.events.map((evt) => (
+                            <li
+                              key={`${evt.at}-${evt.name}`}
+                              className="rounded-md border border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 p-2"
+                            >
+                              <div className="font-semibold text-slate-600 dark:text-slate-300">
+                                {evt.name}
+                              </div>
+                              <pre className="mt-1 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200">
+                                {formatEventData(evt.data)}
+                              </pre>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -221,15 +391,15 @@ function App() {
             value={input}
             rows={1}
             onInput={(e) => {
-              const el = e.currentTarget
-              el.style.height = 'auto'
-              el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
             }}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                send()
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
               }
             }}
             placeholder="Type your message..."
@@ -245,7 +415,7 @@ function App() {
         </div>
       </footer>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

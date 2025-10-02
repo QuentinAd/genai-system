@@ -3,5 +3,5 @@ variable "project_name" {
 }
 variable "ecr_repo" {
   type    = string
-  default = "spark-etl"
+  default = "dag-etl"
 }
