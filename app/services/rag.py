@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from typing import AsyncGenerator
 
-from langchain_openai import OpenAIEmbeddings
-from langchain_chroma import Chroma
 from langchain.chains import RetrievalQA
+from langchain_chroma import Chroma
+from langchain.schema import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_openai import OpenAIEmbeddings
 
 from .openai import OpenAIChatBot
+
+from langchain_core.runnables.config import RunnableConfig
 
 
 def load_retriever_tool(index_path: str, embeddings: OpenAIEmbeddings):
@@ -33,8 +37,6 @@ class RAGChatBot(OpenAIChatBot):
     def __init__(self, index_path: str, **kwargs) -> None:
         super().__init__(**kwargs)
         import os
-        from langchain.schema import Document
-        from langchain.text_splitter import RecursiveCharacterTextSplitter
 
         embeddings = OpenAIEmbeddings()
         # If a Chroma directory exists, load it; otherwise build from raw_text.txt
@@ -80,13 +82,17 @@ class RAGChatBot(OpenAIChatBot):
             return_source_documents=False,
         )
 
-    async def stream_chat(self, message: str) -> AsyncGenerator[str]:
+    async def stream_chat(
+        self,
+        message: str,
+        *,
+        config: RunnableConfig | None = None,
+    ) -> AsyncGenerator[str, None]:
         """Generate an answer via RetrievalQA (handles retrieval, chunking & summarization)."""
-        result = await self.qa_chain.ainvoke(message)
+        result = await self.qa_chain.ainvoke(message, config=config)
         if isinstance(result, dict):
             value = result.get("result")
         else:
             value = result
-        # Coerce to string and guard against None to satisfy AsyncGenerator[str, None]
         answer: str = "" if value is None else str(value)
         yield answer

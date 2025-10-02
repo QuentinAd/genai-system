@@ -1,8 +1,34 @@
-from quart import Blueprint, Response, jsonify
+from __future__ import annotations
+
+import json
+from typing import Any, AsyncGenerator
+
+from quart import Blueprint, Response, jsonify, request
 
 from .decorators import log_call, validate
 from .schema import ChatInput
 from .services import ChatBotBase
+
+
+def _route_config(route: str) -> dict[str, Any]:
+    return {"metadata": {"route": route}}
+
+
+def _ensure_ndjson_line(value: str | bytes) -> str:
+    if isinstance(value, bytes):
+        text = value.decode()
+    else:
+        text = str(value)
+
+    candidate = text.lstrip()
+    if candidate.startswith("{") and candidate.rstrip().endswith("}"):
+        return text if text.endswith("\n") else f"{text}\n"
+
+    payload = {
+        "event": "token",
+        "data": text.rstrip("\n"),
+    }
+    return json.dumps(payload) + "\n"
 
 
 def create_chat_blueprint(chatbot: ChatBotBase) -> Blueprint:
@@ -22,12 +48,49 @@ def create_chat_blueprint(chatbot: ChatBotBase) -> Blueprint:
     @log_call
     @validate(ChatInput)
     async def chat_endpoint(data: ChatInput) -> Response:
-        """Stream chatbot tokens as plain text."""
+        """Stream chatbot responses as plain tokens or NDJSON events."""
 
-        async def generate():
-            async for token in chatbot.stream_chat(data.message):
-                yield token.encode()
+        stream_mode = request.args.get("stream", "events").lower()
+        include_arg = request.args.get("include", "")
+        include_events = [item.strip() for item in include_arg.split(",") if item.strip()]
 
-        return Response(generate(), content_type="text/plain")
+        allowed_events: list[str] | None
+        if include_events:
+            allowed_set = set(include_events)
+            allowed_set.add("token")
+            allowed_events = sorted(allowed_set)
+        else:
+            allowed_events = None
+
+        async def event_iter():
+            async for event in chatbot.stream_events(
+                data.message,
+                config=_route_config("/chat"),
+                include_events=allowed_events,
+            ):
+                yield event
+
+        if stream_mode == "tokens":
+
+            async def generate_tokens() -> AsyncGenerator[bytes, None]:
+                async for event in event_iter():
+                    line = _ensure_ndjson_line(event)
+                    try:
+                        payload = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if payload.get("event") != "token":
+                        continue
+                    token = payload.get("data")
+                    if isinstance(token, str) and token:
+                        yield token.encode()
+
+            return Response(generate_tokens(), content_type="text/plain")
+
+        async def generate_events() -> AsyncGenerator[str, None]:
+            async for event in event_iter():
+                yield _ensure_ndjson_line(event)
+
+        return Response(generate_events(), content_type="application/x-ndjson")
 
     return chat_bp

@@ -7,6 +7,11 @@ from .routes import create_chat_blueprint
 from .services import ChatBotBase, OpenAIChatBot, RAGChatBot, DummyChatBot
 from .settings import settings
 
+logging.basicConfig(
+    level=logging.DEBUG if settings.logging_level == "DEBUG" else logging.WARNING,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+
 logger = logging.getLogger(__name__)
 
 
