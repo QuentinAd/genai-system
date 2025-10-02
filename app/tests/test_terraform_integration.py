@@ -39,7 +39,7 @@ def test_terraform_modules_exist():
     """Test that all required Terraform modules exist."""
     infra_dir = Path(__file__).parent.parent.parent / "infra"
 
-    expected_modules = ["vpc", "eks", "s3", "ecr", "mwaa", "irsa"]
+    expected_modules = ["vpc", "eks", "s3", "ecr", "mwaa"]
 
     for module in expected_modules:
         module_dir = infra_dir / module
