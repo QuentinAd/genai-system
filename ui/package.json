@@ -19,10 +19,12 @@
     "react-markdown": "^9.0.3",
     "rehype-highlight": "^7.0.0",
     "remark-breaks": "^4.0.0",
-    "remark-gfm": "^4.0.0"
+    "remark-gfm": "^4.0.0",
+    "vibe-kanban-web-companion": "^0.0.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^14.6.1",
@@ -30,7 +32,6 @@
     "@types/react": "^19.1.9",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^4.7.0",
-    "@tailwindcss/typography": "^0.5.16",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
