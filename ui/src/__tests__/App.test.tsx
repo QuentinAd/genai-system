@@ -29,7 +29,9 @@ describe('App', () => {
     const stopButton = await screen.findByRole('button', { name: 'Stop' })
     expect(stopButton.className).toContain('bg-red-600')
     expect(stopButton.className).toContain('hover:bg-red-500')
-    expect(screen.queryByText('Generating…')).toBeNull()
+    const summary = await screen.findByText('> Events')
+    expect(summary.tagName).toBe('SUMMARY')
+    expect(summary.className).not.toContain('animate-fade-cycle')
     expect(fetch).toHaveBeenCalledWith('/chat?stream=events', expect.any(Object))
     await userEvent.click(stopButton)
     expect(cancel).toHaveBeenCalled()
@@ -50,21 +52,38 @@ describe('App', () => {
 
     render(<App />)
     const input = screen.getByPlaceholderText('Type your message...')
-    await userEvent.type(input, 'Hello{enter}')
+    await userEvent.type(input, 'Hello{enter}', { delay: 0 })
     const main = screen.getByRole('main')
-    await within(main).findByText('on_chat_model_start: {"input":"Hello"}')
+    const summary = await within(main).findByText(/^> on_chat_model_start$/)
+    expect(summary.tagName).toBe('SUMMARY')
+    expect(summary.className).toContain('animate-fade-cycle')
+    const details = summary.parentElement as HTMLDetailsElement | null
+    expect(details?.open).toBe(false)
+    const bubble = details?.nextElementSibling as HTMLElement | null
+    if (!bubble) {
+      throw new Error('Expected assistant bubble to be present')
+    }
     await screen.findByText('Hi')
     await act(async () => {
       controller.enqueue(encoder.encode('{"event":"token","data":" there"}\n'))
       controller.enqueue(encoder.encode('{"event":"on_chat_model_end","data":{"output":"Hithere"}}\n'))
       controller.close()
     })
-    await screen.findByText('Hi there')
-    const summary = await screen.findByText('Events (2)')
-    await userEvent.click(summary)
-    await screen.findByText('on_chat_model_start')
-    await screen.findByText(/"input"\s*:\s*"Hello"/)
-    await screen.findByText('on_chat_model_end')
+    await within(bubble).findByText('Hi there')
+    const summaryAfter = await within(main).findByText(/^> on_chat_model_end$/)
+    expect(summaryAfter).toBe(summary)
+    expect(summaryAfter.className).toContain('animate-fade-cycle')
+    const eventsTrigger = summaryAfter
+    await userEvent.click(eventsTrigger)
+    const openDetails = summaryAfter.parentElement as HTMLDetailsElement | null
+    expect(openDetails?.open).toBe(true)
+    if (!openDetails) {
+      throw new Error('Expected details to be present')
+    }
+    await within(openDetails).findByText('on_chat_model_start')
+    await within(openDetails).findByText(/"input"\s*:\s*"Hello"/)
+    await within(openDetails).findByText('on_chat_model_end')
+    await within(main).findByText('> Events', undefined, { timeout: 4000 })
   })
 
   it('stop button aborts the request', async () => {

@@ -13,3 +13,17 @@
     @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
   }
 }
+
+@keyframes fade-cycle {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-fade-cycle {
+  animation: fade-cycle 2s ease-in-out infinite;
+}

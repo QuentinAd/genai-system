@@ -49,16 +49,6 @@ function formatEventData(data: unknown): string {
   }
 }
 
-function summariseEvent(data: unknown): string {
-  if (typeof data === "string") return data;
-  if (data == null) return "";
-  try {
-    return JSON.stringify(data);
-  } catch {
-    return String(data);
-  }
-}
-
 function App() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>(() => {
@@ -85,9 +75,12 @@ function App() {
     }
   });
   const [controller, setController] = useState<AbortController | null>(null);
-  const [latestEvent, setLatestEvent] = useState<string>("");
+  const [activeEventDisplay, setActiveEventDisplay] = useState<{ messageTimestamp: number | null; label: string }>(
+    () => ({ messageTimestamp: null, label: "" }),
+  );
   const endRef = useRef<HTMLDivElement | null>(null);
   const saveTimeout = useRef<number | undefined>(undefined);
+  const indicatorTimeout = useRef<number | null>(null);
   const actionButtonClass = [
     "rounded-md",
     "px-4",
@@ -128,19 +121,73 @@ function App() {
     return () => window.clearTimeout(saveTimeout.current);
   }, [messages]);
 
+  useEffect(() => {
+    return () => {
+      if (indicatorTimeout.current !== null) {
+        window.clearTimeout(indicatorTimeout.current);
+      }
+    };
+  }, []);
+
   async function send() {
     if (!input.trim() || loading) return;
     const text = input;
+    const userTimestamp = Date.now();
+    const assistantTimestamp = userTimestamp + 1;
     setInput("");
-    setMessages((m) => [
-      ...m,
-      { role: "user", content: text, timestamp: Date.now() },
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: text, timestamp: userTimestamp },
+      { role: "assistant", content: "", timestamp: assistantTimestamp, events: [] },
     ]);
     setLoading(true);
-    setLatestEvent("");
+    if (indicatorTimeout.current !== null) {
+      window.clearTimeout(indicatorTimeout.current);
+      indicatorTimeout.current = null;
+    }
+    setActiveEventDisplay({ messageTimestamp: assistantTimestamp, label: "" });
 
     const aborter = new AbortController();
     setController(aborter);
+
+    let assistant = "";
+    let assistantEvents: ChatEvent[] = [];
+
+    const showEventIndicator = (name: string) => {
+      setActiveEventDisplay({ messageTimestamp: assistantTimestamp, label: name });
+      if (indicatorTimeout.current !== null) {
+        window.clearTimeout(indicatorTimeout.current);
+      }
+      indicatorTimeout.current = window.setTimeout(() => {
+        setActiveEventDisplay((prev) => {
+          if (prev.messageTimestamp !== assistantTimestamp) return prev;
+          return { messageTimestamp: assistantTimestamp, label: "" };
+        });
+        indicatorTimeout.current = null;
+      }, 2000);
+    };
+
+    const updateAssistant = (
+      updater: (existing: Message | undefined) => Message,
+      ensureCreate = false,
+    ) => {
+      setMessages((prev) => {
+        const index = prev.findIndex(
+          (msg) => msg.role === "assistant" && msg.timestamp === assistantTimestamp,
+        );
+        if (index === -1 && !ensureCreate) {
+          return prev;
+        }
+        const updated = updater(index >= 0 ? prev[index] : undefined);
+        const copy = [...prev];
+        if (index >= 0) {
+          copy[index] = updated;
+        } else {
+          copy.push(updated);
+        }
+        return copy;
+      });
+    };
 
     try {
       const url = BACKEND_URL ? `${BACKEND_URL}/chat?stream=events` : "/chat?stream=events";
@@ -152,32 +199,7 @@ function App() {
       });
       const reader = resp.body?.getReader();
       const decoder = new TextDecoder();
-      let assistant = "";
       let buffer = "";
-      const assistantTimestamp = Date.now();
-      let assistantEvents: ChatEvent[] = [];
-
-      const updateAssistant = (
-        updater: (existing: Message | undefined) => Message,
-        ensureCreate = false,
-      ) => {
-        setMessages((prev) => {
-          const index = prev.findIndex(
-            (msg) => msg.role === "assistant" && msg.timestamp === assistantTimestamp,
-          );
-          if (index === -1 && !ensureCreate) {
-            return prev;
-          }
-          const updated = updater(index >= 0 ? prev[index] : undefined);
-          const copy = [...prev];
-          if (index >= 0) {
-            copy[index] = updated;
-          } else {
-            copy.push(updated);
-          }
-          return copy;
-        });
-      };
 
       const processLine = (line: string) => {
         if (!line) return;
@@ -204,8 +226,7 @@ function App() {
               at: Date.now(),
             };
             assistantEvents = [...assistantEvents, newEvent];
-            const desc = summariseEvent(evt.data ?? null);
-            setLatestEvent(`${name}: ${desc}`);
+            showEventIndicator(name);
             updateAssistant((existing) => {
               const baseContent = existing?.content ?? assistant;
               return {
@@ -255,19 +276,19 @@ function App() {
       }
     } catch (e: unknown) {
       if (!isAbortError(e)) {
-        setMessages((m) => [
-          ...m,
-          {
+        updateAssistant(
+          () => ({
             role: "assistant",
             content: "Error contacting server.",
-            timestamp: Date.now(),
-          },
-        ]);
+            timestamp: assistantTimestamp,
+            events: assistantEvents.map((item) => ({ ...item })),
+          }),
+          true,
+        );
       }
     } finally {
       setLoading(false);
       setController(null);
-      setLatestEvent("");
     }
   }
 
@@ -323,40 +344,33 @@ function App() {
       <main className="flex-1">
         <div className="mx-auto w-full max-w-3xl h-full flex flex-col">
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-3">
-            {loading && latestEvent ? (
-              <div className="flex justify-start">
-                <span
-                  aria-live="polite"
-                  className="text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 rounded px-2 py-1 animate-pulse"
-                >
-                  {latestEvent}
-                </span>
-              </div>
-            ) : null}
-            {messages.map((m, i) => (
-              <div
-                key={`${i}-${m.timestamp}`}
-                className={m.role === "user" ? "text-right" : "text-left"}
-              >
-                {m.role === "user" ? (
-                  <span className="inline-block rounded-2xl px-3 py-2 max-w-[80%] break-words shadow-sm bg-brand-600 text-white">
-                    {m.content}
-                  </span>
-                ) : (
-                  <div className="inline-block rounded-2xl px-3 py-2 max-w-[80%] break-words shadow-sm bg-slate-100 text-slate-900 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-100 dark:ring-slate-800 prose prose-slate dark:prose-invert prose-sm prose-pre:bg-slate-900 prose-pre:text-slate-100">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm, remarkBreaks]}
-                      rehypePlugins={[rehypeHighlight]}
-                      components={{ code: CodeBlock }}
-                    >
+            {messages.map((m, i) => {
+              if (m.role === "user") {
+                return (
+                  <div key={`${i}-${m.timestamp}`} className="text-right">
+                    <span className="inline-block rounded-2xl px-3 py-2 max-w-[80%] break-words shadow-sm bg-brand-600 text-white">
                       {m.content}
-                    </ReactMarkdown>
-                    {m.events?.length ? (
-                      <details className="mt-3 space-y-2">
-                        <summary className="text-xs font-medium text-slate-500 cursor-pointer">
-                          Events ({m.events.length})
-                        </summary>
-                        <ul className="space-y-2 text-xs not-prose">
+                    </span>
+                  </div>
+                );
+              }
+
+              const isActiveMessage = activeEventDisplay.messageTimestamp === m.timestamp;
+              const label = isActiveMessage && activeEventDisplay.label ? activeEventDisplay.label : "Events";
+              const summaryClasses = [
+                "text-xs font-medium text-slate-500 cursor-pointer select-none inline-flex items-center gap-2 rounded px-2 py-1 transition-opacity",
+                isActiveMessage && activeEventDisplay.label
+                  ? "animate-fade-cycle bg-slate-100 dark:bg-slate-800"
+                  : "bg-slate-100 dark:bg-slate-800/70",
+              ].join(" ");
+
+              return (
+                <div key={`${i}-${m.timestamp}`} className="text-left">
+                  <div className="inline-flex max-w-[80%] flex-col items-stretch space-y-2 text-left">
+                    <details className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 px-3 py-2">
+                      <summary className={summaryClasses}>{`> ${label}`}</summary>
+                      {m.events?.length ? (
+                        <ul className="mt-2 space-y-2 text-xs">
                           {m.events.map((evt) => (
                             <li
                               key={`${evt.at}-${evt.name}`}
@@ -371,12 +385,23 @@ function App() {
                             </li>
                           ))}
                         </ul>
-                      </details>
-                    ) : null}
+                      ) : (
+                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">No events yet.</p>
+                      )}
+                    </details>
+                    <div className="rounded-2xl px-3 py-2 break-words shadow-sm bg-slate-100 text-slate-900 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-100 dark:ring-slate-800 prose prose-slate dark:prose-invert prose-sm prose-pre:bg-slate-900 prose-pre:text-slate-100">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkBreaks]}
+                        rehypePlugins={[rehypeHighlight]}
+                        components={{ code: CodeBlock }}
+                      >
+                        {m.content}
+                      </ReactMarkdown>
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+                </div>
+              );
+            })}
             <div ref={endRef} />
           </div>
         </div>
