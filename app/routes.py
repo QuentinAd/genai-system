@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 import json
-from typing import Any, AsyncGenerator
+from typing import AsyncGenerator
 
 from quart import Blueprint, Response, current_app, jsonify, request
 
 from .decorators import log_call, validate
 from .schema import ChatInput
 from .services import ChatBotBase
-
-
-def _route_config(route: str) -> dict[str, Any]:
-    return {"metadata": {"route": route}}
 
 
 def _ensure_ndjson_line(value: str | bytes) -> str:
@@ -70,7 +66,6 @@ def create_chat_blueprint(chatbot: ChatBotBase) -> Blueprint:
         async def event_iter():
             async for event in chatbot.stream_events(
                 data.message,
-                config=_route_config("/chat"),
                 include_events=allowed_events,
             ):
                 yield event

@@ -25,7 +25,7 @@ def load_retriever_tool(index_path: str, embeddings: OpenAIEmbeddings):
         """Simple tool wrapping retriever."""
 
         def run(self, query: str) -> str:
-            docs = retriever.get_relevant_documents(query)
+            docs = retriever.invoke(query)
             return docs[0].page_content if docs else ""
 
     return RetrieverTool()

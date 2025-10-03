@@ -9,46 +9,45 @@ from app.services import ChatBotBase, DummyChatBot, OpenAIChatBot
 
 
 class StubChunk:
-    def __init__(self, content: str | None = None, text: str | None = None) -> None:
+    def __init__(self, content: str | None = None) -> None:
         self.content = content
-        self._text = text
 
     def text(self) -> str:
-        return self._text or ""
+        return self.content or ""
 
 
 class StubLLM:
     def __init__(self) -> None:
         self.astream_call_count = 0
 
-    def invoke(self, input: str, *, config=None, **kwargs) -> str:
+    def invoke(self, input: str) -> str:
         return f"echo:{input}"
 
-    async def astream(self, input: str, *, config=None, **kwargs):
+    async def astream(self, input: str):
         self.astream_call_count += 1
-        yield StubChunk(content="", text="")
-        yield StubChunk(content="hello", text="hello")
+        yield StubChunk(content="")
+        yield StubChunk(content="hello")
         yield "!"
 
-    async def astream_events(self, input: str, *, config=None, **kwargs):
+    async def astream_events(self, input: str):
         yield {"event": "on_chat_model_start", "data": {"input": input}}
         yield {
             "event": "on_chat_model_stream",
-            "data": {"chunk": StubChunk(content="hello", text="hello")},
+            "data": {"chunk": StubChunk(content="hello")},
         }
         yield {
             "event": "on_chat_model_end",
-            "data": {"output": StubChunk(content="hello", text="hello")},
+            "data": {"output": StubChunk(content="hello")},
         }
 
 
 class StubLLMNoEvents(StubLLM):
     astream_events = None  # type: ignore[assignment]
 
-    async def astream(self, input: str, *, config=None, **kwargs):
+    async def astream(self, input: str):
         self.astream_call_count += 1
         for token in ["hi", "there"]:
-            yield StubChunk(content=token, text=token)
+            yield StubChunk(content=token)
 
 
 @pytest.mark.asyncio

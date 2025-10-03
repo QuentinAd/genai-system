@@ -9,13 +9,11 @@ from typing import Any, AsyncGenerator
 import httpx
 
 from langchain_core.language_models.base import BaseLanguageModel
-from langchain_core.runnables.config import RunnableConfig
-
 
 logger = logging.getLogger(__name__)
 
-_TOKEN_EVENT_NAMES = {"on_chat_model_stream", "on_chat_token_stream"}
-_TOKEN_INCLUDE_NAMES = _TOKEN_EVENT_NAMES | {"token"}
+_TOKEN_EVENT_INCLUDE_NAMES = {"on_chat_model_stream"}
+_TOKEN_INCLUDE_NAMES = {"token"}
 
 
 def _call_if_callable(value: Any) -> Any:
@@ -127,7 +125,7 @@ def _serialize_event(event: Any, include: set[str] | None) -> str | None:
         return None
 
     event_name = normalised.get("event")
-    if isinstance(event_name, str) and event_name in _TOKEN_EVENT_NAMES:
+    if isinstance(event_name, str) and event_name in _TOKEN_EVENT_INCLUDE_NAMES:
         data = normalised.get("data")
         token = _extract_token(data) if isinstance(data, Mapping) else ""
         token_allowed = include is None or bool(
@@ -169,18 +167,15 @@ class ChatBotBase:
     async def stream_chat(
         self,
         message: str,
-        *,
-        config: RunnableConfig | None = None,
     ) -> AsyncGenerator[str, None]:
         if self.llm is None:
             raise NotImplementedError("Subclasses without an LLM must override stream_chat")
 
         request = self.build_request(message)
-        call_kwargs = {"config": config} if config is not None else {}
 
         stream_fn = getattr(self.llm, "astream", None)
         if callable(stream_fn):
-            async for chunk in stream_fn(request, **call_kwargs):
+            async for chunk in stream_fn(request):
                 text = _chunk_to_text(chunk)
                 if text:
                     yield text
@@ -188,7 +183,7 @@ class ChatBotBase:
 
         sync_stream_fn = getattr(self.llm, "stream", None)
         if callable(sync_stream_fn):
-            for chunk in sync_stream_fn(request, **call_kwargs):
+            for chunk in sync_stream_fn(request):
                 text = _chunk_to_text(chunk)
                 if text:
                     yield text
@@ -196,7 +191,7 @@ class ChatBotBase:
 
         invoke_fn = getattr(self.llm, "invoke", None)
         if callable(invoke_fn):
-            result = invoke_fn(request, **call_kwargs)
+            result = invoke_fn(request)
             text = _chunk_to_text(result)
             if text:
                 yield text
@@ -208,7 +203,6 @@ class ChatBotBase:
         self,
         message: str,
         *,
-        config: RunnableConfig | None = None,
         include_events: Sequence[str] | None = None,
     ) -> AsyncGenerator[str, None]:
         allowed = set(include_events) if include_events else None
@@ -216,11 +210,10 @@ class ChatBotBase:
 
         if self.llm is not None:
             request = self.build_request(message)
-            call_kwargs = {"config": config} if config is not None else {}
             event_stream = getattr(self.llm, "astream_events", None)
             if callable(event_stream):
                 emitted = False
-                async for event in event_stream(request, **call_kwargs):
+                async for event in event_stream(request):
                     serialized_event = _serialize_event(event, allowed)
                     logger.debug("raw event=%s serialized=%s", event, serialized_event)
                     if serialized_event:
@@ -251,7 +244,7 @@ class ChatBotBase:
             yield payload
             emitted = True
 
-        async for token in self.stream_chat(message, config=config):
+        async for token in self.stream_chat(message):
             if not token:
                 continue
             if should_stream_tokens:
@@ -312,12 +305,7 @@ class DummyChatBot(ChatBotBase):
     def __init__(self, client: httpx.AsyncClient | None = None) -> None:
         super().__init__("dummy", client=client)
 
-    async def stream_chat(
-        self,
-        message: str,
-        *,
-        config: RunnableConfig | None = None,
-    ) -> AsyncGenerator[str, None]:
+    async def stream_chat(self, message: str) -> AsyncGenerator[str, None]:
         for word in message.split():
             yield word
             await asyncio.sleep(0)
