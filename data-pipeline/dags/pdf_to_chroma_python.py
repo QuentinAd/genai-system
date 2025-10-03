@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.providers.standard.operators.python import PythonOperator
 from datetime import datetime
 import os
 import logging
@@ -46,7 +46,7 @@ DEFAULT_ARGS = {
 }
 
 with DAG(
-    dag_id="pdf_to_chroma_python_python",
+    dag_id="pdf_to_chroma",
     default_args=DEFAULT_ARGS,
     schedule=None,
     description="PDF to ChromaDB index using pure Python",
@@ -54,20 +54,15 @@ with DAG(
     tags=["etl", "python", "chroma", "embeddings"],
 ) as dag:
 
-    def extract_pdf_task():
-        """Load PDF and write raw text to file"""
+    def run_pdf_to_chroma_python_job() -> None:
+        """Orchestrate the full PDF-to-Chroma index creation."""
         logger.info(f"Extracting text from {PDF_PATH}")
         text = load_pdf(PDF_PATH)
         os.makedirs(DATA_DIR, exist_ok=True)
-        with open(RAW_TEXT, "w", encoding="utf-8") as f:
-            f.write(text)
+        with open(RAW_TEXT, "w", encoding="utf-8") as raw_file:
+            raw_file.write(text)
         logger.info(f"Raw text saved to {RAW_TEXT}")
 
-    def build_chroma_task():
-        """Chunk text and persist Chroma collection on disk"""
-        logger.info(f"Loading raw text from {RAW_TEXT}")
-        with open(RAW_TEXT, encoding="utf-8") as f:
-            text = f.read()
         logger.info("Chunking text")
         chunks = chunk_text(text)
         # Dynamic imports to avoid import errors during DAG parse
@@ -78,7 +73,7 @@ with DAG(
         vc_mod = __import__("langchain_community.vectorstores", fromlist=["Chroma"])
         Chroma = vc_mod.Chroma
 
-        docs = [Document(page_content=c) for c in chunks]
+        docs = [Document(page_content=chunk) for chunk in chunks]
         os.makedirs(CHROMA_DIR, exist_ok=True)
         logger.info(f"Building Chroma vectorstore in {CHROMA_DIR}")
         embeddings = OpenAIEmbeddings(model=MODEL)
@@ -90,14 +85,7 @@ with DAG(
         # Chroma >=0.4 persists automatically on creation
         logger.info("Chroma vectorstore persisted successfully")
 
-    extract_pdf = PythonOperator(
-        task_id="extract_pdf",
-        python_callable=extract_pdf_task,
+    run_pipeline = PythonOperator(
+        task_id="run_pdf_to_chroma_python_job",
+        python_callable=run_pdf_to_chroma_python_job,
     )
-
-    build_chroma = PythonOperator(
-        task_id="build_chroma",
-        python_callable=build_chroma_task,
-    )
-
-    extract_pdf >> build_chroma
