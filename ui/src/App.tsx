@@ -231,7 +231,6 @@ function App() {
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
           let idx: number;
-          // eslint-disable-next-line no-cond-assign
           while ((idx = buffer.indexOf("\n")) !== -1) {
             const line = buffer.slice(0, idx).trim();
             buffer = buffer.slice(idx + 1);
