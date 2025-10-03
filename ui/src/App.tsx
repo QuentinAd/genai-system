@@ -88,6 +88,17 @@ function App() {
   const [latestEvent, setLatestEvent] = useState<string>("");
   const endRef = useRef<HTMLDivElement | null>(null);
   const saveTimeout = useRef<number | undefined>(undefined);
+  const actionButtonClass = [
+    "rounded-md",
+    "px-4",
+    "py-2",
+    "text-white",
+    "transition-colors",
+    "disabled:opacity-50",
+    loading
+      ? "bg-red-600 hover:bg-red-500"
+      : "bg-brand-600 hover:bg-brand-500",
+  ].join(" ");
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -300,28 +311,6 @@ function App() {
         <div className="mx-auto w-full max-w-3xl flex items-center justify-between">
           <h1 className="text-lg font-semibold tracking-tight">GenAI Chat</h1>
           <div className="flex items-center gap-2">
-            {loading && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">Generating…</span>
-                {latestEvent ? (
-                  <span
-                    aria-live="polite"
-                    className="text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 rounded px-2 py-1 animate-pulse"
-                    title={latestEvent}
-                  >
-                    {latestEvent}
-                  </span>
-                ) : null}
-              </div>
-            )}
-            {loading ? (
-              <button
-                className="rounded-md border px-2 py-1 text-sm border-red-600 text-red-600"
-                onClick={stop}
-              >
-                Stop
-              </button>
-            ) : null}
             <button
               className="rounded-md border px-2 py-1 text-sm border-slate-300 dark:border-slate-700"
               onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
@@ -335,6 +324,16 @@ function App() {
       <main className="flex-1">
         <div className="mx-auto w-full max-w-3xl h-full flex flex-col">
           <div className="flex-1 overflow-y-auto px-4 py-6 space-y-3">
+            {loading && latestEvent ? (
+              <div className="flex justify-start">
+                <span
+                  aria-live="polite"
+                  className="text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 rounded px-2 py-1 animate-pulse"
+                >
+                  {latestEvent}
+                </span>
+              </div>
+            ) : null}
             {messages.map((m, i) => (
               <div
                 key={`${i}-${m.timestamp}`}
@@ -406,11 +405,12 @@ function App() {
             disabled={loading}
           />
           <button
-            className="rounded-md bg-brand-600 hover:bg-brand-500 disabled:opacity-50 px-4 py-2 text-white"
-            onClick={send}
-            disabled={loading || !input.trim()}
+            type="button"
+            className={actionButtonClass}
+            onClick={loading ? stop : send}
+            disabled={!loading && !input.trim()}
           >
-            Send
+            {loading ? "Stop" : "Send"}
           </button>
         </div>
       </footer>

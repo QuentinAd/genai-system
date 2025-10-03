@@ -1,4 +1,4 @@
-import { render, screen, act } from '@testing-library/react'
+import { render, screen, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 
@@ -26,9 +26,12 @@ describe('App', () => {
     const input = screen.getByPlaceholderText('Type your message...')
     await userEvent.type(input, 'Hello')
     await userEvent.click(screen.getByText('Send'))
-    await screen.findByText('Stop')
+    const stopButton = await screen.findByRole('button', { name: 'Stop' })
+    expect(stopButton.className).toContain('bg-red-600')
+    expect(stopButton.className).toContain('hover:bg-red-500')
+    expect(screen.queryByText('Generating…')).toBeNull()
     expect(fetch).toHaveBeenCalledWith('/chat?stream=events', expect.any(Object))
-    await userEvent.click(screen.getByText('Stop'))
+    await userEvent.click(stopButton)
     expect(cancel).toHaveBeenCalled()
   })
 
@@ -48,6 +51,8 @@ describe('App', () => {
     render(<App />)
     const input = screen.getByPlaceholderText('Type your message...')
     await userEvent.type(input, 'Hello{enter}')
+    const main = screen.getByRole('main')
+    await within(main).findByText('on_chat_model_start: {"input":"Hello"}')
     await screen.findByText('Hi')
     await act(async () => {
       controller.enqueue(encoder.encode('{"event":"token","data":" there"}\n'))
