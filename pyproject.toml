@@ -1,6 +1,6 @@
 [tool.ruff]
 line-length = 100
-exclude = ["build", "dist", ".venv"]
+exclude = ["build", "dist", ".venv", "third_party"]
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "B"]
