@@ -51,9 +51,9 @@ def test_hirag_index_params_and_defaults():
     assert dag.catchup is False
     assert dag.max_active_runs == 1
     assert "batch_size" in dag.params
-    assert dag.params["batch_size"].default == 5
+    assert dag.params["batch_size"] == 5
     assert "max_concurrency" in dag.params
-    assert dag.params["max_concurrency"].default == 2
+    assert dag.params["max_concurrency"] == 2
 
     default_args = dag.default_args
     assert default_args["retries"] == 2
