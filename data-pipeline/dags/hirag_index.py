@@ -50,6 +50,9 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
     class S3KeySensor(EmptyOperator):  # type: ignore[misc]
         """Stub sensor that raises if executed without the AWS provider."""
 
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+
         def execute(self, context: dict | None = None) -> None:  # noqa: D401 - simple stub
             raise AirflowException(
                 "apache-airflow-providers-amazon is required for the hirag_index DAG."
