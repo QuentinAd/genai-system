@@ -51,6 +51,19 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
         """Stub sensor that raises if executed without the AWS provider."""
 
         def __init__(self, *args: Any, **kwargs: Any) -> None:
+            for field in (
+                "bucket_name",
+                "bucket_key",
+                "wildcard_match",
+                "aws_conn_id",
+                "verify",
+                "poke_interval",
+                "timeout",
+                "soft_fail",
+                "mode",
+                "deferrable",
+            ):
+                kwargs.pop(field, None)
             super().__init__(*args, **kwargs)
 
         def execute(self, context: dict | None = None) -> None:  # noqa: D401 - simple stub
