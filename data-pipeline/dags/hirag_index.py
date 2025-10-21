@@ -16,8 +16,46 @@ from typing import Any, Dict, List, Protocol
 
 from airflow import DAG
 from airflow.models.param import Param
-from airflow.providers.amazon.aws.hooks.s3 import S3Hook
-from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+
+try:
+    from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+    from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    from airflow.exceptions import AirflowException
+    from airflow.operators.empty import EmptyOperator
+
+    class S3Hook:  # type: ignore[override]
+        """Stub S3Hook that fails fast when the AWS provider is missing."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401 - simple stub
+            self._raise()
+
+        def _raise(self) -> None:
+            raise AirflowException(
+                "apache-airflow-providers-amazon is required for the hirag_index DAG."
+            )
+
+        def list_keys(self, *args: Any, **kwargs: Any) -> list[str]:
+            self._raise()
+
+        def download_file(self, *args: Any, **kwargs: Any) -> None:
+            self._raise()
+
+        def copy_object(self, *args: Any, **kwargs: Any) -> None:
+            self._raise()
+
+        def delete_objects(self, *args: Any, **kwargs: Any) -> None:
+            self._raise()
+
+    class S3KeySensor(EmptyOperator):  # type: ignore[misc]
+        """Stub sensor that raises if executed without the AWS provider."""
+
+        def execute(self, context: dict | None = None) -> None:  # noqa: D401 - simple stub
+            raise AirflowException(
+                "apache-airflow-providers-amazon is required for the hirag_index DAG."
+            )
+
+
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 
