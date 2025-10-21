@@ -22,7 +22,11 @@ try:
     from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     from airflow.exceptions import AirflowException
-    from airflow.operators.empty import EmptyOperator
+
+    try:  # pragma: no cover - standard provider is optional in older Airflow
+        from airflow.providers.standard.operators.empty import EmptyOperator
+    except ModuleNotFoundError:  # pragma: no cover - fallback for older releases
+        from airflow.operators.empty import EmptyOperator  # type: ignore[no-redef]
 
     class S3Hook:  # type: ignore[override]
         """Stub S3Hook that fails fast when the AWS provider is missing."""
