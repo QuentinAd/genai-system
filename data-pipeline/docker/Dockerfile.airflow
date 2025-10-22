@@ -1,8 +1,8 @@
 # Custom Airflow image with project dependencies installed
-FROM apache/airflow:3.0.3
+FROM apache/airflow:3.1.0
 USER airflow
 
 # Install project Python dependencies
 COPY requirements.txt /opt/airflow/requirements.txt
+COPY dags/requirements.txt /opt/airflow/dags/requirements.txt
 RUN pip install --no-cache-dir -r /opt/airflow/requirements.txt
-

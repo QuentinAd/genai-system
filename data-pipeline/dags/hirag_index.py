@@ -13,71 +13,15 @@ import tempfile
 from functools import lru_cache
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Protocol
+from pathlib import Path
 
 from airflow import DAG
-from airflow.models.param import Param
-
-try:
-    from airflow.providers.amazon.aws.hooks.s3 import S3Hook
-    from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
-except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    from airflow.exceptions import AirflowException
-
-    try:  # pragma: no cover - standard provider is optional in older Airflow
-        from airflow.providers.standard.operators.empty import EmptyOperator
-    except ModuleNotFoundError:  # pragma: no cover - fallback for older releases
-        from airflow.operators.empty import EmptyOperator  # type: ignore[no-redef]
-
-    class S3Hook:  # type: ignore[override]
-        """Stub S3Hook that fails fast when the AWS provider is missing."""
-
-        def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401 - simple stub
-            self._raise()
-
-        def _raise(self) -> None:
-            raise AirflowException(
-                "apache-airflow-providers-amazon is required for the hirag_index DAG."
-            )
-
-        def list_keys(self, *args: Any, **kwargs: Any) -> list[str]:
-            self._raise()
-
-        def download_file(self, *args: Any, **kwargs: Any) -> None:
-            self._raise()
-
-        def copy_object(self, *args: Any, **kwargs: Any) -> None:
-            self._raise()
-
-        def delete_objects(self, *args: Any, **kwargs: Any) -> None:
-            self._raise()
-
-    class S3KeySensor(EmptyOperator):  # type: ignore[misc]
-        """Stub sensor that raises if executed without the AWS provider."""
-
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            for field in (
-                "bucket_name",
-                "bucket_key",
-                "wildcard_match",
-                "aws_conn_id",
-                "verify",
-                "poke_interval",
-                "timeout",
-                "soft_fail",
-                "mode",
-                "deferrable",
-            ):
-                kwargs.pop(field, None)
-            super().__init__(*args, **kwargs)
-
-        def execute(self, context: dict | None = None) -> None:  # noqa: D401 - simple stub
-            raise AirflowException(
-                "apache-airflow-providers-amazon is required for the hirag_index DAG."
-            )
-
-
+from airflow.sdk import Param
 from airflow.providers.standard.operators.python import PythonOperator
-from airflow.utils.trigger_rule import TriggerRule
+from airflow.task.trigger_rule import TriggerRule
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -211,9 +155,25 @@ def _download_documents(batch_size: int) -> Dict[str, Any]:
         if key_hash in processed_hashes:
             LOGGER.debug("Skipping already processed key %s", key)
             continue
-        local_path = os.path.join(tempdir, os.path.basename(key))
-        LOGGER.info("Downloading s3://%s/%s to %s", INGEST_BUCKET, key, local_path)
-        hook.download_file(key=key, bucket_name=INGEST_BUCKET, local_path=local_path)
+        LOGGER.info("Downloading s3://%s/%s to temporary directory %s", INGEST_BUCKET, key, tempdir)
+        downloaded_path = hook.download_file(
+            key=key,
+            bucket_name=INGEST_BUCKET,
+            local_path=tempdir,
+            preserve_file_name=True,
+        )
+        candidate_path = (
+            Path(downloaded_path) if downloaded_path else Path(tempdir) / os.path.basename(key)
+        )
+        if candidate_path.is_dir():
+            candidate_path = candidate_path / os.path.basename(key)
+        if not candidate_path.exists():
+            fallback_path = Path(tempdir) / os.path.basename(key)
+            if fallback_path.exists():
+                candidate_path = fallback_path
+            else:
+                raise FileNotFoundError(f"Downloaded object {key} not found at {candidate_path}")
+        local_path = str(candidate_path)
         new_documents.append(
             {
                 "s3_key": key,
