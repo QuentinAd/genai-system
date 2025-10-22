@@ -23,7 +23,6 @@ def test_hirag_index_dag_loaded():
         "wait_for_new_documents",
         "download_new_documents",
         "index_documents",
-        "sync_knowledge_base",
         "archive_documents",
         "cleanup_tempdir",
     }
@@ -37,14 +36,12 @@ def test_hirag_index_task_dependencies():
     wait_task = dag.get_task("wait_for_new_documents")
     download_task = dag.get_task("download_new_documents")
     index_task = dag.get_task("index_documents")
-    sync_task = dag.get_task("sync_knowledge_base")
     archive_task = dag.get_task("archive_documents")
     cleanup_task = dag.get_task("cleanup_tempdir")
 
     assert download_task in wait_task.downstream_list
     assert index_task in download_task.downstream_list
-    assert sync_task in index_task.downstream_list
-    assert archive_task in sync_task.downstream_list
+    assert archive_task in index_task.downstream_list
     assert cleanup_task in archive_task.downstream_list
 
 
