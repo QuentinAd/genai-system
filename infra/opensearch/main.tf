@@ -52,6 +52,7 @@ locals {
 }
 
 data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
 
 resource "random_password" "domain_master" {
   length  = 24
@@ -151,7 +152,7 @@ resource "aws_opensearch_domain" "hirag" {
         Effect = "Allow"
         Principal = "*"
         Action = "es:*"
-        Resource = "${aws_opensearch_domain.hirag.arn}/*"
+        Resource = format("arn:%s:es:%s:%s:domain/%s/*", data.aws_partition.current.partition, var.aws_region, data.aws_caller_identity.current.account_id, local.domain_name)
         Condition = {
           IpAddress = {
             "aws:SourceIp" = [var.vpc_cidr]
