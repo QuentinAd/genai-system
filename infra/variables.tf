@@ -4,7 +4,7 @@ variable "aws_region" {
 }
 
 variable "project_name" {
-  default = "rbc-interview"
+  default = "genai-system"
 }
 
 variable "environment" {

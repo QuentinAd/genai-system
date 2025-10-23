@@ -1,9 +1,9 @@
 terraform {
   backend "s3" {
-    bucket         = "rbc-interview-terraform-state"
+    bucket         = "genai-system-terraform-state"
     key            = "dev/terraform.tfstate"
     region         = "ca-central-1"
-    dynamodb_table = "rbc-interview-terraform-locks"
+    dynamodb_table = "genai-system-terraform-locks"
     encrypt        = true
   }
 }
