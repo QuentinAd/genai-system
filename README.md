@@ -22,7 +22,7 @@ The infrastructure is provisioned using Terraform and includes:
 - **MWAA**: Managed Airflow for orchestrating data pipelines
 - **IAM**: Fine-grained roles and policies for secure access
 - **DynamoDB**: Durable key-value cache and chat session history for HiRAG
-- **Amazon Neptune + Analytics**: Graph database and analytics workspace for relationship traversal
+- **Amazon Neptune**: Graph database supporting relationship traversal
 - **OpenSearch**: Vector search domain and KNN index backing HiRAG retrievals
 
 ### Terraform Modules Structure
@@ -79,7 +79,7 @@ Store credentials using the generated Secrets Manager secrets:
 
 ### Health Checks
 - **Neptune**: Use the Secrets Manager payload to connect via Gremlin or SPARQL and execute a simple traversal. Monitor CloudWatch for connection or query failures.
-- **Neptune Analytics**: Validate analytics graph status (see Terraform output `neptune_graph_arn`) and run a sample analytic query once data is ingested.
+- **Neptune**: Use the Secrets Manager payload to connect via Gremlin or SPARQL and execute a simple traversal. Monitor CloudWatch for connection or query failures.
 - **DynamoDB**: CloudWatch alarms (`*-read-capacity`, `*-write-capacity`) trigger when on-demand capacity spikes.
 - **OpenSearch**: Terraform bootstraps the `hirag_embeddings` index. Query `_cluster/health` and run a sample KNN search to verify readiness.
 - **Airflow DAG**: Confirm the HiRAG DAG consumes new S3 keys, archives objects to the configured prefix, and writes processed keys to DynamoDB.

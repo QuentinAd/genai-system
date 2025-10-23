@@ -22,8 +22,3 @@ output "neptune_ingest_bucket_name" {
   description = "S3 bucket used for Neptune bulk loader jobs"
   value       = aws_s3_bucket.neptune_ingest.id
 }
-
-output "neptune_graph_arn" {
-  description = "ARN of the Neptune Analytics graph"
-  value       = try(aws_neptune_graph.analytics[0].arn, null)
-}

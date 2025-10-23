@@ -114,6 +114,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "neptune_ingest" {
     id     = "archive-ingest"
     status = "Enabled"
 
+    filter {
+      prefix = ""
+    }
+
     transition {
       days          = 30
       storage_class = "STANDARD_IA"
@@ -141,14 +145,5 @@ resource "aws_secretsmanager_secret_version" "neptune" {
 }
 
 resource "aws_neptune_graph" "analytics" {
-  count      = var.enable_analytics ? 1 : 0
-  graph_name = "${var.project_name}-${var.environment}-hirag"
-  graph_type = "PROPERTY_GRAPH"
-
-  provisioned_capacity {
-    read_capacity  = 2
-    write_capacity = 2
-  }
-
-  tags = merge(local.tags, { Component = "neptune-analytics" })
+  count = 0
 }

@@ -107,8 +107,6 @@ output "neptune_writer_endpoint" { value = module.neptune_hirag.neptune_cluster_
 output "neptune_reader_endpoint" { value = module.neptune_hirag.neptune_reader_endpoint }
 output "neptune_secret_arn" { value = module.neptune_hirag.neptune_secret_arn }
 output "neptune_ingest_bucket_name" { value = module.neptune_hirag.neptune_ingest_bucket_name }
-output "neptune_graph_arn" { value = module.neptune_hirag.neptune_graph_arn }
-
 output "opensearch_domain_endpoint" { value = module.opensearch_hirag.opensearch_domain_endpoint }
 output "opensearch_domain_arn" { value = module.opensearch_hirag.opensearch_domain_arn }
 output "opensearch_admin_secret_arn" { value = module.opensearch_hirag.opensearch_admin_secret_arn }

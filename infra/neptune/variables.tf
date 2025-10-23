@@ -52,17 +52,6 @@ variable "neptune_port" {
   default     = 8182
 }
 
-variable "enable_analytics" {
-  description = "Controls whether Neptune Analytics graph resources are created."
-  type        = bool
-  default     = true
-}
-
-variable "neptune_graph_name" {
-  description = "Name for the Neptune Analytics graph (when enabled)."
-  type        = string
-  default     = "hirag-analytics"
-}
 
 variable "neptune_ingest_bucket_force_destroy" {
   description = "Allow Terraform to delete the Neptune ingest bucket even when non-empty."
