@@ -111,6 +111,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "hirag_ingestion" {
     id     = "transition-ingest"
     status = "Enabled"
 
+    filter {
+      prefix = ""
+    }
+
     transition {
       days          = var.ingest_transition_days
       storage_class = "STANDARD_IA"

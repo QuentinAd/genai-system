@@ -143,7 +143,3 @@ resource "aws_secretsmanager_secret_version" "neptune" {
     port            = var.neptune_port
   })
 }
-
-resource "aws_neptune_graph" "analytics" {
-  count = 0
-}
