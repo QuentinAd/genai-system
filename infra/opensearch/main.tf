@@ -204,23 +204,25 @@ resource "null_resource" "create_index" {
     domain_endpoint = aws_opensearch_domain.hirag.endpoint
     index_name      = var.index_name
     index_body_hash = sha1(local.index_body)
+    admin_username  = var.domain_admin_username
+    admin_password  = random_password.domain_master.result
   }
 
   provisioner "local-exec" {
-    when    = "create"
+    when    = create
     command = <<EOT
-curl --fail -s -X PUT "https://${aws_opensearch_domain.hirag.endpoint}/${var.index_name}" \
+curl --fail -s -X PUT "https://${self.triggers.domain_endpoint}/${self.triggers.index_name}" \
   -H 'Content-Type: application/json' \
-  -u '${var.domain_admin_username}:${random_password.domain_master.result}' \
+  -u '${self.triggers.admin_username}:${self.triggers.admin_password}' \
   -d '${local.index_body}'
 EOT
   }
 
   provisioner "local-exec" {
-    when    = "destroy"
+    when    = destroy
     command = <<EOT
-curl --fail -s -X DELETE "https://${aws_opensearch_domain.hirag.endpoint}/${var.index_name}" \
-  -u '${var.domain_admin_username}:${random_password.domain_master.result}' || true
+curl --fail -s -X DELETE "https://${self.triggers.domain_endpoint}/${self.triggers.index_name}" \
+  -u '${self.triggers.admin_username}:${self.triggers.admin_password}' || true
 EOT
   }
 }
