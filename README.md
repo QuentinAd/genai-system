@@ -6,7 +6,7 @@ This repository contains a comprehensive data pipeline service, backend service,
 
 - **data-pipeline/** – Airflow DAGs jobs
 - **app/** – Quart-based backend providing a streaming chat endpoint
-- **infra/** – Terraform modules for AWS resources (VPC, EKS, S3, ECR, MWAA)
+- **infra/** – Terraform modules for AWS resources (VPC, EKS, S3, ECR, MWAA, DynamoDB, Neptune, OpenSearch)
 - **helm/** – Kubernetes deployment charts with dynamic configuration
 - **.github/workflows/** – CI/CD pipelines for automated deployment
 
@@ -17,10 +17,13 @@ The infrastructure is provisioned using Terraform and includes:
 ### Core AWS Resources
 - **VPC**: Custom VPC with public and private subnets across multiple AZs
 - **EKS**: Managed Kubernetes cluster for running containerized workloads
-- **S3**: Buckets for data storage and Airflow DAG management
+- **S3**: Buckets for data storage, HiRAG ingestion, and Airflow DAG management
 - **ECR**: Container registries for backend and DAG ETL images
 - **MWAA**: Managed Airflow for orchestrating data pipelines
 - **IAM**: Fine-grained roles and policies for secure access
+- **DynamoDB**: Durable key-value cache and chat session history for HiRAG
+- **Amazon Neptune + Analytics**: Graph database and analytics workspace for relationship traversal
+- **OpenSearch**: Vector search domain and KNN index backing HiRAG retrievals
 
 ### Terraform Modules Structure
 ```
@@ -28,19 +31,55 @@ infra/
 ├── main.tf              # Root module orchestrating all components
 ├── vpc/                 # VPC, subnets, routing
 ├── eks/                 # EKS cluster and node groups
-├── s3/                  # S3 buckets for data and DAGs
+├── s3/                  # S3 buckets for data, DAGs, and HiRAG ingestion
 ├── ecr/                 # Container registries
 ├── mwaa/                # Managed Airflow environment
-└── irsa/                # IAM Roles for Service Accounts
+├── dynamodb/            # HiRAG DynamoDB tables, alarms, IAM policies
+├── neptune/             # Neptune graph cluster and analytics configuration
+└── opensearch/          # Vector search domain and index bootstrap
 ```
 
 ### Key Terraform Outputs
-The infrastructure exports the following outputs for integration with CI/CD:
+The infrastructure exports the following outputs for integration with CI/CD and runtime configuration:
 - `eks_cluster_name` - EKS cluster name for kubectl configuration
 - `ecr_backend_repository_url` - Backend application registry URL
-- `dags_bucket` - S3 bucket name for Airflow DAGs
-- `data_bucket` - S3 bucket name for processed data
-- `vpc_id` and subnet IDs for networking configuration
+- `dags_bucket` / `data_bucket` - S3 buckets for Airflow DAGs and shared datasets
+- `hirag_ingestion_bucket` / `hirag_archive_prefix` - Buckets and prefixes used by the HiRAG ingestion DAG
+- `hirag_kv_table_name` / `chat_history_table_name` - DynamoDB table names for storage bindings
+- `neptune_writer_endpoint` / `neptune_reader_endpoint` - Neptune endpoints for graph traversal
+- `opensearch_domain_endpoint` - Vector search endpoint utilized by the backend
+- `vpc_id`, subnet IDs, and `vpc_cidr_block` for networking configuration
+
+## HiRAG Infrastructure Runbook
+
+### Provisioning Order
+1. Apply Terraform under `infra/` (`terraform init && terraform apply`). This provisions S3, DynamoDB, Neptune, OpenSearch, and supporting IAM artifacts.
+2. Deploy or update the data pipeline (Airflow/MWAA) so the HiRAG ingestion DAG has access to the new buckets and DynamoDB tables.
+3. Redeploy backend services (EKS/Helm) with new environment variables referencing Terraform outputs.
+
+### Required Environment Variables
+- `HIRAG_SOURCE_BUCKET` → `hirag_ingestion_bucket`
+- `HIRAG_ARCHIVE_PREFIX` → `hirag_archive_prefix`
+- `DYNAMO_PROCESSED_TABLE` → `hirag_kv_table_name`
+- `HIRAG_AWS_CONN_ID`, `HIRAG_BATCH_SIZE`, `HIRAG_MAX_CONCURRENCY`, `HIRAG_TEMP_BASE_DIR`, `HIRAG_WORKING_DIR` (existing, ensure values remain aligned)
+- Backend services additionally require:
+  - `OPENSEARCH_ENDPOINT` → `opensearch_domain_endpoint`
+  - `OPENSEARCH_INDEX` → `hirag_embeddings`
+  - `NEPTUNE_ENDPOINT` → `neptune_writer_endpoint`
+  - `NEPTUNE_READER_ENDPOINT` → `neptune_reader_endpoint`
+  - `HIRAG_KV_TABLE` → `hirag_kv_table_name`
+  - `HIRAG_CHAT_HISTORY_TABLE` → `chat_history_table_name`
+
+Store credentials using the generated Secrets Manager secrets:
+- `opensearch_admin_secret_arn`
+- `neptune_secret_arn`
+
+### Health Checks
+- **Neptune**: Use the Secrets Manager payload to connect via Gremlin or SPARQL and execute a simple traversal. Monitor CloudWatch for connection or query failures.
+- **Neptune Analytics**: Validate analytics graph status (see Terraform output `neptune_graph_arn`) and run a sample analytic query once data is ingested.
+- **DynamoDB**: CloudWatch alarms (`*-read-capacity`, `*-write-capacity`) trigger when on-demand capacity spikes.
+- **OpenSearch**: Terraform bootstraps the `hirag_embeddings` index. Query `_cluster/health` and run a sample KNN search to verify readiness.
+- **Airflow DAG**: Confirm the HiRAG DAG consumes new S3 keys, archives objects to the configured prefix, and writes processed keys to DynamoDB.
 
 ## CI/CD Pipelines
 
