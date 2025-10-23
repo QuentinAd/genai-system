@@ -39,26 +39,26 @@ module "dynamodb_hirag" {
 }
 
 module "neptune_hirag" {
-  source                = "./neptune"
-  project_name          = var.project_name
-  environment           = var.environment
-  aws_region            = var.aws_region
-  vpc_id                = module.vpc.vpc_id
-  private_subnet_ids    = module.vpc.private_subnet_ids
-  vpc_cidr              = module.vpc.vpc_cidr_block
+  source                              = "./neptune"
+  project_name                        = var.project_name
+  environment                         = var.environment
+  aws_region                          = var.aws_region
+  vpc_id                              = module.vpc.vpc_id
+  private_subnet_ids                  = module.vpc.private_subnet_ids
+  vpc_cidr                            = module.vpc.vpc_cidr_block
   neptune_ingest_bucket_force_destroy = false
 
   depends_on = [module.vpc]
 }
 
 module "opensearch_hirag" {
-  source        = "./opensearch"
-  project_name  = var.project_name
-  environment   = var.environment
-  aws_region    = var.aws_region
-  vpc_id        = module.vpc.vpc_id
-  vpc_cidr      = module.vpc.vpc_cidr_block
-  subnet_ids    = module.vpc.private_subnet_ids
+  source       = "./opensearch"
+  project_name = var.project_name
+  environment  = var.environment
+  aws_region   = var.aws_region
+  vpc_id       = module.vpc.vpc_id
+  vpc_cidr     = module.vpc.vpc_cidr_block
+  subnet_ids   = module.vpc.private_subnet_ids
 
   depends_on = [module.vpc]
 }
