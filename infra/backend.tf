@@ -3,7 +3,6 @@ terraform {
     bucket         = "genai-system-terraform-state"
     key            = "dev/terraform.tfstate"
     region         = "ca-central-1"
-    dynamodb_table = "genai-system-terraform-locks"
     encrypt        = true
   }
 }

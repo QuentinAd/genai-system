@@ -53,9 +53,12 @@ The infrastructure exports the following outputs for integration with CI/CD and 
 ## HiRAG Infrastructure Runbook
 
 ### Provisioning Order
-1. Apply Terraform under `infra/` (`terraform init && terraform apply`). This provisions S3, DynamoDB, Neptune, OpenSearch, and supporting IAM artifacts.
-2. Deploy or update the data pipeline (Airflow/MWAA) so the HiRAG ingestion DAG has access to the new buckets and DynamoDB tables.
-3. Redeploy backend services (EKS/Helm) with new environment variables referencing Terraform outputs.
+1. Configure the remote Terraform backend:
+   - Create the S3 bucket and optional DynamoDB lock table in your AWS account.
+   - In `backend.tf` replace the placeholders with your bootstrap s3 backend resource name.
+   - Run `terraform init` inside `infra/`.
+2. Apply Terraform under `infra/` (`terraform plan`, then `terraform apply`). This provisions S3, DynamoDB, Neptune, OpenSearch, and supporting IAM artifacts.
+3. Deploy or update the data pipeline (Airflow/MWAA) so the HiRAG ingestion DAG has access to the new buckets and DynamoDB tables.
 
 ### Required Environment Variables
 - `HIRAG_SOURCE_BUCKET` → `hirag_ingestion_bucket`
