@@ -46,7 +46,7 @@ resource "aws_neptune_cluster_parameter_group" "lab_mode" {
 
   parameter {
     name  = "neptune_dfe_query_engine"
-    value = "1"
+    value = "enabled"
   }
 
   tags = local.tags

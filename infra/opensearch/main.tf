@@ -54,6 +54,10 @@ locals {
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
+resource "aws_iam_service_linked_role" "opensearch" {
+  aws_service_name = "opensearchservice.amazonaws.com"
+}
+
 resource "random_password" "domain_master" {
   length  = 24
   special = true
@@ -92,6 +96,8 @@ resource "aws_cloudwatch_log_group" "opensearch" {
 resource "aws_opensearch_domain" "hirag" {
   domain_name    = local.domain_name
   engine_version = "OpenSearch_2.11"
+
+  depends_on = [aws_iam_service_linked_role.opensearch]
 
   cluster_config {
     instance_type          = var.domain_instance_type
