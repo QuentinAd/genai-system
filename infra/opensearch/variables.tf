@@ -37,7 +37,12 @@ variable "domain_instance_type" {
 variable "domain_instance_count" {
   description = "Number of OpenSearch data nodes."
   type        = number
-  default     = 3
+  default     = 2
+
+  validation {
+    condition     = var.domain_instance_count % 2 == 0
+    error_message = "domain_instance_count must be an even number when zone awareness is enabled."
+  }
 }
 
 variable "ebs_volume_size" {

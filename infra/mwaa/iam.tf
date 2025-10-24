@@ -35,6 +35,12 @@ data "aws_iam_policy_document" "mwaa_s3" {
       "arn:aws:s3:::${var.project_name}-data/*"
     ]
   }
+
+  statement {
+    effect    = "Allow"
+    actions   = ["s3:GetAccountPublicAccessBlock"]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "mwaa_s3" {

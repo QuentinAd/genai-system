@@ -49,11 +49,6 @@ resource "aws_neptune_cluster_parameter_group" "lab_mode" {
     value = "1"
   }
 
-  parameter {
-    name  = "neptune_ml_enabled"
-    value = "1"
-  }
-
   tags = local.tags
 }
 
