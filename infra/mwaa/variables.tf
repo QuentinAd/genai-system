@@ -23,3 +23,7 @@ variable "vpc_id" {
   type        = string
 }
 
+variable "vpc_cidr" {
+  description = "Primary CIDR block of the VPC hosting MWAA"
+  type        = string
+}

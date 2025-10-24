@@ -181,10 +181,12 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
   service_name      = "com.amazonaws.${var.aws_region}.ecr.dkr"
   vpc_endpoint_type = "Interface"
   subnet_ids        = local.vpce_subnet_ids
+  security_group_ids = [aws_security_group.vpce_interface.id]
 }
 resource "aws_vpc_endpoint" "logs" {
   vpc_id            = aws_vpc.main.id
   service_name      = "com.amazonaws.${var.aws_region}.logs"
   vpc_endpoint_type = "Interface"
   subnet_ids        = local.vpce_subnet_ids
+  security_group_ids = [aws_security_group.vpce_interface.id]
 }

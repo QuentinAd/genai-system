@@ -15,6 +15,7 @@ module "mwaa" {
   project_name = var.project_name
 
   vpc_id           = module.vpc.vpc_id
+  vpc_cidr         = module.vpc.vpc_cidr_block
   private_subnets  = module.vpc.private_subnet_ids # to live in private subnets
   dags_bucket_name = module.s3_data.dags_bucket_name
   data_bucket_name = module.s3_data.data_bucket_name

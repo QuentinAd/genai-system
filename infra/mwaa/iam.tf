@@ -58,3 +58,18 @@ resource "aws_iam_role_policy_attachment" "mwaa_s3" {
   role       = aws_iam_role.mwaa_exec.name
   policy_arn = aws_iam_policy.mwaa_s3.arn
 }
+
+resource "aws_iam_role_policy_attachment" "mwaa_service_managed" {
+  role       = aws_iam_role.mwaa_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonMWAAServiceRolePolicy"
+}
+
+resource "aws_iam_role_policy_attachment" "mwaa_scheduler_managed" {
+  role       = aws_iam_role.mwaa_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonMWAASchedulerAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "mwaa_webserver_managed" {
+  role       = aws_iam_role.mwaa_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonMWAAWebServerAccess"
+}
