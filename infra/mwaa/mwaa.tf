@@ -5,7 +5,7 @@ resource "aws_mwaa_environment" "mwaa" {
   source_bucket_arn = "arn:aws:s3:::${var.dags_bucket_name}"
   execution_role_arn = aws_iam_role.mwaa_exec.arn
 
-  airflow_version = "2.8.1"
+  airflow_version = "3.0.6"
   environment_class = "mw1.small"
   max_workers = 5
   min_workers = 1
