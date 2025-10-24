@@ -17,6 +17,8 @@ function getBackendBase(): string {
   return typeof candidate === "string" ? candidate.replace(/\/$/, "") : "";
 }
 const BACKEND_URL = getBackendBase();
+
+type RetrievalMode = "hirag" | "rag";
 interface ChatEvent {
   name: string;
   data: unknown;
@@ -28,6 +30,7 @@ interface Message {
   content: string;
   timestamp: number;
   events?: ChatEvent[];
+  mode?: RetrievalMode | null;
 }
 
 function isAbortError(err: unknown): boolean {
@@ -59,19 +62,30 @@ function summariseEvent(data: unknown): string {
   }
 }
 
+function readStoredMode(): RetrievalMode | null {
+  try {
+    const raw = sessionStorage.getItem("chat_mode");
+    return raw === "hirag" || raw === "rag" ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
 function App() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const raw = localStorage.getItem("chat_messages");
       const base = Date.now();
-      return raw
-        ? (JSON.parse(raw) as Message[]).map((m, i) => ({
-            ...m,
-            timestamp: m.timestamp ?? base + i * 1000,
-            events: Array.isArray(m.events) ? m.events : [],
-          }))
-        : [];
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as Partial<Message>[];
+      return parsed.map((m, i) => ({
+        role: m?.role === "assistant" ? "assistant" : "user",
+        content: typeof m?.content === "string" ? m.content : "",
+        timestamp: m?.timestamp ?? base + i * 1000,
+        events: Array.isArray(m?.events) ? m.events : [],
+        mode: m?.mode === "hirag" || m?.mode === "rag" ? m.mode : null,
+      }));
     } catch {
       return [];
     }
@@ -84,6 +98,7 @@ function App() {
       return "dark";
     }
   });
+  const [mode, setMode] = useState<RetrievalMode | null>(() => readStoredMode());
   const [controller, setController] = useState<AbortController | null>(null);
   const [latestEvent, setLatestEvent] = useState<string>("");
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -105,6 +120,15 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
+    try {
+      if (mode) sessionStorage.setItem("chat_mode", mode);
+      else sessionStorage.removeItem("chat_mode");
+    } catch {
+      /* ignore */
+    }
+  }, [mode]);
+
+  useEffect(() => {
     if (messages.length === 0) return;
     window.clearTimeout(saveTimeout.current);
     saveTimeout.current = window.setTimeout(() => {
@@ -120,10 +144,11 @@ function App() {
   async function send() {
     if (!input.trim() || loading) return;
     const text = input;
+    const selectedMode = mode;
     setInput("");
     setMessages((m) => [
       ...m,
-      { role: "user", content: text, timestamp: Date.now() },
+      { role: "user", content: text, timestamp: Date.now(), mode: selectedMode },
     ]);
     setLoading(true);
     setLatestEvent("");
@@ -132,7 +157,9 @@ function App() {
     setController(aborter);
 
     try {
-      const url = BACKEND_URL ? `${BACKEND_URL}/chat?stream=events` : "/chat?stream=events";
+      let url = BACKEND_URL ? `${BACKEND_URL}/chat?stream=events` : "/chat?stream=events";
+      if (selectedMode === "hirag") url += "&hirag";
+      else if (selectedMode === "rag") url += "&rag";
       const resp = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -182,6 +209,7 @@ function App() {
                 content: assistant,
                 timestamp: assistantTimestamp,
                 events: assistantEvents.map((item) => ({ ...item })),
+                mode: selectedMode,
               }),
               true,
             );
@@ -202,6 +230,7 @@ function App() {
                 content: baseContent,
                 timestamp: assistantTimestamp,
                 events: assistantEvents.map((item) => ({ ...item })),
+                mode: selectedMode ?? existing?.mode ?? null,
               };
             });
           }
@@ -238,6 +267,7 @@ function App() {
               content: assistant || existing?.content || "",
               timestamp: assistantTimestamp,
               events: assistantEvents.map((item) => ({ ...item })),
+              mode: selectedMode ?? existing?.mode ?? null,
             }),
             Boolean(assistantEvents.length || assistant),
           );
@@ -251,6 +281,7 @@ function App() {
             role: "assistant",
             content: "Error contacting server.",
             timestamp: Date.now(),
+            mode: selectedMode ?? null,
           },
         ]);
       }
@@ -293,6 +324,13 @@ function App() {
       </div>
     );
   }
+
+  const toggleClass = (target: RetrievalMode) =>
+    `rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
+      mode === target
+        ? "bg-brand-600 border-brand-600 text-white"
+        : "bg-white dark:bg-slate-900 border-slate-300 text-slate-600 hover:border-brand-500 dark:border-slate-700 dark:text-slate-300"
+    }`;
 
   return (
     <div className="min-h-dvh bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col">
@@ -353,6 +391,11 @@ function App() {
                     >
                       {m.content}
                     </ReactMarkdown>
+                    {m.mode ? (
+                      <span className="mt-3 inline-flex items-center rounded-full border border-brand-600/60 bg-brand-600/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-300">
+                        {m.mode === "hirag" ? "HiRAG" : "RAG"} mode
+                      </span>
+                    ) : null}
                     {m.events?.length ? (
                       <details className="mt-3 space-y-2">
                         <summary className="text-xs font-medium text-slate-500 cursor-pointer">
@@ -386,25 +429,52 @@ function App() {
 
       <footer className="sticky bottom-0 border-t border-slate-200 dark:border-slate-800 px-4 py-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur">
         <div className="mx-auto w-full max-w-3xl flex gap-2 items-end">
-          <textarea
-            className="flex-1 rounded-md bg-white border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-brand-500 placeholder:text-slate-500 dark:bg-slate-900 dark:border-slate-800 resize-none"
-            value={input}
-            rows={1}
-            onInput={(e) => {
-              const el = e.currentTarget;
-              el.style.height = "auto";
-              el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
-            }}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            placeholder="Type your message..."
-            disabled={loading}
-          />
+          <div className="flex-1 flex flex-col gap-2">
+            <textarea
+              className="flex-1 rounded-md bg-white border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-brand-500 placeholder:text-slate-500 dark:bg-slate-900 dark:border-slate-800 resize-none"
+              value={input}
+              rows={1}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+              }}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+              placeholder="Type your message..."
+              disabled={loading}
+            />
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-medium text-slate-600 dark:text-slate-300">Retrieval mode</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className={toggleClass("hirag")}
+                  aria-label="Toggle HiRAG mode"
+                  aria-pressed={mode === "hirag"}
+                  title="HiRAG: hierarchical retrieval for richer answers"
+                  onClick={() => setMode((prev) => (prev === "hirag" ? null : "hirag"))}
+                >
+                  HiRAG
+                </button>
+                <button
+                  type="button"
+                  className={toggleClass("rag")}
+                  aria-label="Toggle RAG mode"
+                  aria-pressed={mode === "rag"}
+                  title="RAG: standard retrieval-augmented responses"
+                  onClick={() => setMode((prev) => (prev === "rag" ? null : "rag"))}
+                >
+                  RAG
+                </button>
+              </div>
+            </div>
+          </div>
           <button
             className="rounded-md bg-brand-600 hover:bg-brand-500 disabled:opacity-50 px-4 py-2 text-white"
             onClick={send}
