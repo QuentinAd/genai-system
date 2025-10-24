@@ -11,3 +11,4 @@ chromadb>=0.5
 pydantic>=2.0
 pytest-asyncio>=0.23
 gunicorn>=21
+-r ../third_party/hhy-huang_hirag/requirements.txt
