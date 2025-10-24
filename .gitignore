@@ -1,6 +1,7 @@
 # local env and data
 .env
 data
+hirag_cache
 
 # python
 .venv
