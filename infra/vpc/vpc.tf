@@ -148,7 +148,33 @@ resource "aws_vpc_endpoint" "ecr_api" {
   service_name      = "com.amazonaws.${var.aws_region}.ecr.api"
   vpc_endpoint_type = "Interface"
   subnet_ids        = local.vpce_subnet_ids
-  security_group_ids = []          # create SG if you want to restrict
+  security_group_ids = [aws_security_group.vpce_interface.id]
+}
+
+resource "aws_security_group" "vpce_interface" {
+  name        = "${var.project_name}-vpce-interface"
+  description = "Restrict interface endpoints to VPC traffic"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "TLS from within VPC"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+  }
+
+  tags = {
+    Name        = "${var.project_name}-vpce-interface"
+    Project     = var.project_name
+  }
 }
 resource "aws_vpc_endpoint" "ecr_dkr" {
   vpc_id            = aws_vpc.main.id
