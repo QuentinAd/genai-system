@@ -61,6 +61,8 @@ The infrastructure exports the following outputs for integration with CI/CD and 
 4. Build the frontend UI (`npm run build` under `ui/`) and sync the `dist/` folder to the Terraform-provisioned UI bucket. The provided CD workflow automates this and handles CloudFront invalidations.
 5. Deploy the backend container image from ECR to your runtime of choice (for example, ECS Fargate or Lambda). The CD workflow publishes the latest image tags.
 
+> **Note:** If this is the first time you are creating an OpenSearch domain in the account, set `create_service_linked_role = true` for the `opensearch` module (or pass `-var opensearch_hirag_create_service_linked_role=true`) so Terraform can create the required service-linked role. Leave it `false` (default) if the role already exists to avoid conflicts.
+
 ### Required Environment Variables
 - `HIRAG_SOURCE_BUCKET` → `hirag_ingestion_bucket`
 - `HIRAG_ARCHIVE_PREFIX` → `hirag_archive_prefix`

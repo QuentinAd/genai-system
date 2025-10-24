@@ -42,7 +42,7 @@ resource "aws_neptune_subnet_group" "hirag" {
 
 resource "aws_neptune_cluster_parameter_group" "lab_mode" {
   name   = "${local.cluster_identifier}-pg"
-  family = "neptune1"
+  family = "neptune1.4"
 
   parameter {
     name  = "neptune_dfe_query_engine"
@@ -57,6 +57,7 @@ resource "aws_neptune_cluster" "hirag" {
   neptune_subnet_group_name           = aws_neptune_subnet_group.hirag.name
   vpc_security_group_ids              = [aws_security_group.neptune.id]
   engine                              = "neptune"
+  engine_version                      = "1.2.0.0"
   backup_retention_period             = var.backups_retention_days
   preferred_backup_window             = var.preferred_backup_window
   apply_immediately                   = true

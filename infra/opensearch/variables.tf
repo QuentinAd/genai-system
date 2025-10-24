@@ -45,6 +45,12 @@ variable "domain_instance_count" {
   }
 }
 
+variable "create_service_linked_role" {
+  description = "Whether to create the OpenSearch service-linked role. Set to true for first-time setup."
+  type        = bool
+  default     = false
+}
+
 variable "ebs_volume_size" {
   description = "Size in GiB for OpenSearch EBS volumes."
   type        = number
