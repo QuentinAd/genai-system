@@ -15,8 +15,6 @@ resource "aws_subnet" "public_a" {
   map_public_ip_on_launch = true
   tags = {
     Name = "${var.project_name}-public-a"
-    "kubernetes.io/role/elb" = "1"
-    "kubernetes.io/cluster/${var.project_name}-eks" = "shared"
   }
 }
 
@@ -27,8 +25,6 @@ resource "aws_subnet" "public_b" {
   map_public_ip_on_launch = true
   tags = {
     Name = "${var.project_name}-public-b"
-    "kubernetes.io/role/elb" = "1"
-    "kubernetes.io/cluster/${var.project_name}-eks" = "shared"
   }
 }
 
@@ -41,8 +37,6 @@ resource "aws_subnet" "private_a" {
   availability_zone = "${var.aws_region}a"
   tags = {
     Name = "${var.project_name}-private-a"
-    "kubernetes.io/role/internal-elb" = "1"
-    "kubernetes.io/cluster/${var.project_name}-eks" = "shared"
   }
   lifecycle {
     create_before_destroy = true
@@ -55,8 +49,6 @@ resource "aws_subnet" "private_b" {
   availability_zone = "${var.aws_region}b"
   tags = {
     Name = "${var.project_name}-private-b"
-    "kubernetes.io/role/internal-elb" = "1"
-    "kubernetes.io/cluster/${var.project_name}-eks" = "shared"
   }
   lifecycle {
     create_before_destroy = true
@@ -73,9 +65,9 @@ resource "aws_internet_gateway" "igw" {
 
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
-  route  { 
+  route  {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.igw.id 
+    gateway_id = aws_internet_gateway.igw.id
     }
   tags   = { Name = "${var.project_name}-public-rt" }
 }
@@ -114,16 +106,16 @@ resource "aws_nat_gateway" "nat_b" {
 
 resource "aws_route_table" "private_a" {
   vpc_id = aws_vpc.main.id
-  route  { 
-    cidr_block = "0.0.0.0/0" 
+  route  {
+    cidr_block = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.nat_a.id
     }
   tags = { Name = "${var.project_name}-private-rt-a" }
 }
 resource "aws_route_table" "private_b" {
   vpc_id = aws_vpc.main.id
-  route  { 
-    cidr_block = "0.0.0.0/0" 
+  route  {
+    cidr_block = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.nat_b.id
     }
   tags = { Name = "${var.project_name}-private-rt-b" }
@@ -170,4 +162,3 @@ resource "aws_vpc_endpoint" "logs" {
   vpc_endpoint_type = "Interface"
   subnet_ids        = local.vpce_subnet_ids
 }
-

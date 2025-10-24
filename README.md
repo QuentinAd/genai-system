@@ -6,8 +6,7 @@ This repository contains a comprehensive data pipeline service, backend service,
 
 - **data-pipeline/** – Airflow DAGs jobs
 - **app/** – Quart-based backend providing a streaming chat endpoint
-- **infra/** – Terraform modules for AWS resources (VPC, EKS, S3, ECR, MWAA, DynamoDB, Neptune, OpenSearch)
-- **helm/** – Kubernetes deployment charts with dynamic configuration
+- **infra/** – Terraform modules for AWS resources (VPC, S3, ECR, MWAA, DynamoDB, Neptune, OpenSearch)
 - **.github/workflows/** – CI/CD pipelines for automated deployment
 
 ## Infrastructure Setup
@@ -16,7 +15,6 @@ The infrastructure is provisioned using Terraform and includes:
 
 ### Core AWS Resources
 - **VPC**: Custom VPC with public and private subnets across multiple AZs
-- **EKS**: Managed Kubernetes cluster for running containerized workloads
 - **S3**: Buckets for data storage, HiRAG ingestion, and Airflow DAG management
 - **ECR**: Container registries for backend and DAG ETL images
 - **MWAA**: Managed Airflow for orchestrating data pipelines
@@ -24,30 +22,31 @@ The infrastructure is provisioned using Terraform and includes:
 - **DynamoDB**: Durable key-value cache and chat session history for HiRAG
 - **Amazon Neptune**: Graph database supporting relationship traversal
 - **OpenSearch**: Vector search domain and KNN index backing HiRAG retrievals
+- **CloudFront + S3**: Static hosting for the frontend UI with global distribution
 
 ### Terraform Modules Structure
 ```
 infra/
 ├── main.tf              # Root module orchestrating all components
 ├── vpc/                 # VPC, subnets, routing
-├── eks/                 # EKS cluster and node groups
 ├── s3/                  # S3 buckets for data, DAGs, and HiRAG ingestion
 ├── ecr/                 # Container registries
 ├── mwaa/                # Managed Airflow environment
 ├── dynamodb/            # HiRAG DynamoDB tables, alarms, IAM policies
 ├── neptune/             # Neptune graph cluster and analytics configuration
-└── opensearch/          # Vector search domain and index bootstrap
+├── opensearch/          # Vector search domain and index bootstrap
+└── cloudfront_ui/       # Static website bucket + CloudFront distribution for the UI
 ```
 
 ### Key Terraform Outputs
 The infrastructure exports the following outputs for integration with CI/CD and runtime configuration:
-- `eks_cluster_name` - EKS cluster name for kubectl configuration
 - `ecr_backend_repository_url` - Backend application registry URL
 - `dags_bucket` / `data_bucket` - S3 buckets for Airflow DAGs and shared datasets
 - `hirag_ingestion_bucket` / `hirag_archive_prefix` - Buckets and prefixes used by the HiRAG ingestion DAG
 - `hirag_kv_table_name` / `chat_history_table_name` - DynamoDB table names for storage bindings
 - `neptune_writer_endpoint` / `neptune_reader_endpoint` - Neptune endpoints for graph traversal
 - `opensearch_domain_endpoint` - Vector search endpoint utilized by the backend
+- `ui_bucket_name` / `ui_distribution_domain_name` / `ui_distribution_id` - Static UI hosting bucket, CloudFront domain, and distribution handle
 - `vpc_id`, subnet IDs, and `vpc_cidr_block` for networking configuration
 
 ## HiRAG Infrastructure Runbook
@@ -55,10 +54,12 @@ The infrastructure exports the following outputs for integration with CI/CD and 
 ### Provisioning Order
 1. Configure the remote Terraform backend:
    - Create the S3 bucket and optional DynamoDB lock table in your AWS account.
-   - In `backend.tf` replace the placeholders with your bootstrap s3 backend resource name.
-   - Run `terraform init` inside `infra/`.
+   - Copy `infra/backend.hcl.example` to `backend.hcl` and replace the placeholders with your resource names.
+   - Run `terraform init -backend-config=backend.hcl` inside `infra/`.
 2. Apply Terraform under `infra/` (`terraform plan`, then `terraform apply`). This provisions S3, DynamoDB, Neptune, OpenSearch, and supporting IAM artifacts.
 3. Deploy or update the data pipeline (Airflow/MWAA) so the HiRAG ingestion DAG has access to the new buckets and DynamoDB tables.
+4. Build the frontend UI (`npm run build` under `ui/`) and sync the `dist/` folder to the Terraform-provisioned UI bucket. The provided CD workflow automates this and handles CloudFront invalidations.
+5. Deploy the backend container image from ECR to your runtime of choice (for example, ECS Fargate or Lambda). The CD workflow publishes the latest image tags.
 
 ### Required Environment Variables
 - `HIRAG_SOURCE_BUCKET` → `hirag_ingestion_bucket`
@@ -79,10 +80,10 @@ Store credentials using the generated Secrets Manager secrets:
 
 ### Health Checks
 - **Neptune**: Use the Secrets Manager payload to connect via Gremlin or SPARQL and execute a simple traversal. Monitor CloudWatch for connection or query failures.
-- **Neptune**: Use the Secrets Manager payload to connect via Gremlin or SPARQL and execute a simple traversal. Monitor CloudWatch for connection or query failures.
 - **DynamoDB**: CloudWatch alarms (`*-read-capacity`, `*-write-capacity`) trigger when on-demand capacity spikes.
 - **OpenSearch**: Terraform bootstraps the `hirag_embeddings` index. Query `_cluster/health` and run a sample KNN search to verify readiness.
 - **Airflow DAG**: Confirm the HiRAG DAG consumes new S3 keys, archives objects to the configured prefix, and writes processed keys to DynamoDB.
+- **CloudFront UI**: Load the distribution domain (`ui_distribution_domain_name`) and verify static assets resolve; check the distribution for recent invalidations.
 
 ## CI/CD Pipelines
 
@@ -115,37 +116,28 @@ The repository implements three automated workflows:
 **Steps:**
 - Build and push Docker images to ECR
 - Deploy DAGs to MWAA S3 bucket
-- Deploy applications to EKS using Helm with dynamic configuration
+- Build the UI and publish static assets to the CloudFront-backed S3 bucket, then invalidate the distribution cache
 
-## Helm Charts Integration
+## Deployment Targets
 
-The Helm charts dynamically consume Terraform outputs for seamless deployment:
+### Frontend UI (CloudFront + S3)
+- Terraform provisions a versioned S3 bucket and CloudFront distribution dedicated to the UI.
+- The CD workflow (or a manual `npm run build` followed by `aws s3 sync`) publishes the `ui/dist/` assets.
+- Non-HTML assets are uploaded with long-lived cache headers; HTML is uploaded with `no-cache` to ensure clients fetch new releases.
+- CloudFront invalidations (triggered automatically in the workflow) guarantee fast propagation of UI changes.
 
-### Dynamic Configuration
-Instead of hardcoded values, the charts use placeholders that are populated at deployment time:
-- `BACKEND_IMAGE_PLACEHOLDER` → ECR backend image URI
-- `EKS_CLUSTER_NAME_PLACEHOLDER` → Actual EKS cluster name
-- `AWS_REGION_PLACEHOLDER` → Target AWS region
-
-### Kubernetes Resources
-The Helm chart deploys:
-- **Deployment**: Backend API service with health checks and resource limits
-- **Service**: ClusterIP service exposing the backend
-- **Job**: ETL job for data processing
-- **ConfigMap**: Non-sensitive configuration values
-- **Secret**: Sensitive credentials (API keys, AWS credentials)
-
-### Configuration Management
-- **ConfigMaps**: Store environment-specific settings like bucket names, cluster details
-- **Secrets**: Handle sensitive data like API keys and AWS credentials
-- **Resource Limits**: Define CPU and memory constraints for optimal resource utilization
+### Backend Service (Container Image in ECR)
+- Terraform creates ECR repositories (`etl`, `genai-app`) for the pipeline and backend services.
+- The CD workflow builds and pushes fresh `latest` tags for both images.
+- Run the backend container using your preferred compute platform (ECS Fargate, EC2, Lambda, etc.) pointing to the emitted ECR URI and providing the environment variables listed earlier.
+- The infrastructure stack surfaces IAM policies and storage endpoints required by the backend.
 
 ## Requirements
 - Python 3.12+
 - Docker & Docker Compose for local development
 - Terraform >= 1.5 for infrastructure management
-- kubectl and Helm for Kubernetes deployments
 - AWS CLI configured with appropriate permissions
+- Node.js 20+ for building the UI
 
 ## Local Development Setup
 
@@ -237,21 +229,27 @@ npm run lint && npm run format && npm run test
 3. The workflow will:
    - Build and push Docker images
    - Deploy DAGs to MWAA
-   - Deploy applications to EKS with Helm
+   - Build the UI and publish it through CloudFront
 
-### Manual Helm Deployment
+### Manual UI Deployment
 ```bash
-# Update kubeconfig
-aws eks update-kubeconfig --name <cluster-name> --region <region>
+# Build the production bundle
+cd ui
+npm ci
+npm run build
 
-# Deploy with dynamic values
-helm upgrade --install genai-system ./helm \
-  --set backend.image="<ecr-uri>/genai-app:latest" \
-  --set cluster.name="<cluster-name>" \
-  --set aws.region="<region>" \
-  --namespace genai-system \
-  --create-namespace
+# Sync assets (long-lived cache) and HTML (no-cache)
+aws s3 sync dist s3://<ui-bucket> --delete --cache-control "public, max-age=31536000" --exclude "index.html"
+aws s3 cp dist/index.html s3://<ui-bucket>/index.html --cache-control "no-cache"
+
+# Invalidate CloudFront so users see the refresh immediately
+aws cloudfront create-invalidation --distribution-id <distribution-id> --paths "/*"
 ```
+
+### Manual Backend Deployment
+1. Pull the published image from ECR: `docker pull <account>.dkr.ecr.<region>.amazonaws.com/genai-app:latest`.
+2. Supply the environment variables listed earlier (`OPENSEARCH_ENDPOINT`, `HIRAG_KV_TABLE`, etc.).
+3. Run the container locally (`docker run -p 8000:8000 ...`) or reference the image from your compute platform (ECS service, Lambda, EC2, etc.).
 
 ## Configuration
 
@@ -265,9 +263,9 @@ helm upgrade --install genai-system ./helm \
 - `AWS_ACCESS_KEY_ID`: AWS access key for deployments
 - `AWS_SECRET_ACCESS_KEY`: AWS secret key for deployments
 - `AWS_ACCOUNT_ID`: AWS account ID for ECR
-- `EKS_CLUSTER_NAME`: Name of the EKS cluster
 - `MWAA_DAGS_BUCKET`: S3 bucket for Airflow DAGs
-- `DATA_BUCKET_NAME`: S3 bucket for processed data
+- `UI_BUCKET_NAME`: Terraform-provisioned bucket for the UI static assets
+- `UI_DISTRIBUTION_ID`: CloudFront distribution ID backing the UI
 
 ## API Usage
 
@@ -284,15 +282,13 @@ curl http://localhost:8000/health
 
 ## Monitoring and Observability
 
-- EKS cluster logs are exported to CloudWatch
-- Application metrics available through Kubernetes native monitoring
+- Application metrics available through your chosen deployment platform
 - Airflow DAG execution logs available in MWAA console
-- Container logs accessible via `kubectl logs`
+- Container logs accessible via your container orchestrator tooling
 
 ## Security Considerations
 
-- All sensitive credentials stored in Kubernetes Secrets
-- EKS cluster uses private endpoints for enhanced security
+- All sensitive credentials stored securely (for example, AWS Secrets Manager or parameter stores)
 - IAM roles follow principle of least privilege
 - Container images scanned for vulnerabilities in ECR
 - Network policies can be implemented for additional isolation

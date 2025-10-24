@@ -1,6 +1,0 @@
-apiVersion: v2
-name: genai-system
-description: Helm chart for deploying the GenAI backend and ETL job
-version: 0.1.0
-appVersion: "1.0"
-type: application

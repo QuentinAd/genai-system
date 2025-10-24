@@ -36,8 +36,8 @@ def test_infrastructure_workflow_exports_outputs():
     assert output_step_found, "Should have step to export Terraform outputs"
 
 
-def test_cd_workflow_uses_helm():
-    """Test that CD workflow uses Helm for deployment."""
+def test_cd_workflow_deploys_ui_via_cloudfront():
+    """Test that CD workflow deploys UI assets to CloudFront."""
     workflows_dir = Path(__file__).parent.parent.parent / ".github" / "workflows"
     cd_workflow = workflows_dir / "cd.yaml"
 
@@ -46,29 +46,33 @@ def test_cd_workflow_uses_helm():
     with open(cd_workflow, "r") as f:
         workflow = yaml.safe_load(f)
 
-    # Check that there's a helm deployment job
+    # Check that there's a UI deployment job
     assert "jobs" in workflow, "Workflow should have jobs"
-    assert "deploy-helm" in workflow["jobs"], "Should have deploy-helm job"
+    assert "deploy-ui" in workflow["jobs"], "Should have deploy-ui job"
 
-    helm_job = workflow["jobs"]["deploy-helm"]
-    steps = helm_job["steps"]
+    ui_job = workflow["jobs"]["deploy-ui"]
+    steps = ui_job["steps"]
 
-    # Check for Helm installation step
-    helm_install_found = False
-    helm_deploy_found = False
+    node_step_found = False
+    s3_sync_found = False
+    invalidation_found = False
 
     for step in steps:
         step_name = step.get("name", "")
-        if "Install Helm" in step_name:
-            helm_install_found = True
-        elif "Deploy with Helm" in step_name:
-            helm_deploy_found = True
-            assert "helm upgrade --install" in step["run"], "Should use helm upgrade --install"
-            assert "--set backend.image=" in step["run"], "Should set backend image dynamically"
-            assert "--set etlJob.image=" in step["run"], "Should set etl image dynamically"
+        if "Install Node.js" in step_name:
+            node_step_found = True
+        elif "Upload UI assets to S3" in step_name:
+            s3_sync_found = True
+            assert "aws s3 sync" in step["run"], "Should sync built assets to S3"
+        elif "Invalidate CloudFront cache" in step_name:
+            invalidation_found = True
+            assert (
+                "aws cloudfront create-invalidation" in step["run"]
+            ), "Should invalidate CloudFront distribution"
 
-    assert helm_install_found, "Should install Helm"
-    assert helm_deploy_found, "Should deploy with Helm"
+    assert node_step_found, "Should install Node.js before building UI"
+    assert s3_sync_found, "Should upload UI assets to S3"
+    assert invalidation_found, "Should invalidate CloudFront"
 
 
 def test_cd_workflow_builds_both_images():

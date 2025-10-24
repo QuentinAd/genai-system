@@ -21,14 +21,18 @@ def test_terraform_main_has_outputs():
         "vpc_id",
         "private_subnet_ids",
         "public_subnet_ids",
-        "eks_cluster_name",
-        "eks_cluster_endpoint",
-        "eks_cluster_version",
         "ecr_etl_repository_url",
         "ecr_backend_repository_url",
         "mwaa_env_name",
         "dags_bucket",
         "data_bucket",
+        "hirag_ingestion_bucket",
+        "hirag_kv_table_name",
+        "opensearch_domain_endpoint",
+        "neptune_writer_endpoint",
+        "ui_bucket_name",
+        "ui_distribution_domain_name",
+        "ui_distribution_id",
     ]
 
     for output in required_outputs:
@@ -39,7 +43,16 @@ def test_terraform_modules_exist():
     """Test that all required Terraform modules exist."""
     infra_dir = Path(__file__).parent.parent.parent / "infra"
 
-    expected_modules = ["vpc", "eks", "s3", "ecr", "mwaa"]
+    expected_modules = [
+        "vpc",
+        "s3",
+        "ecr",
+        "mwaa",
+        "dynamodb",
+        "neptune",
+        "opensearch",
+        "cloudfront_ui",
+    ]
 
     for module in expected_modules:
         module_dir = infra_dir / module
@@ -47,20 +60,45 @@ def test_terraform_modules_exist():
         assert module_dir.is_dir(), f"Module {module} should be a directory"
 
 
-def test_eks_module_has_outputs():
-    """Test that EKS module defines required outputs."""
-    eks_dir = Path(__file__).parent.parent.parent / "infra" / "eks"
-    outputs_file = eks_dir / "outputs.tf"
+def test_opensearch_module_has_outputs():
+    """Test that OpenSearch module defines required outputs."""
+    opensearch_dir = Path(__file__).parent.parent.parent / "infra" / "opensearch"
+    outputs_file = opensearch_dir / "outputs.tf"
 
-    assert outputs_file.exists(), "EKS module should have outputs.tf"
+    assert outputs_file.exists(), "OpenSearch module should have outputs.tf"
 
     with open(outputs_file, "r") as f:
         content = f.read()
 
-    required_outputs = ["cluster_name", "cluster_endpoint", "cluster_version"]
+    required_outputs = [
+        "opensearch_domain_endpoint",
+        "opensearch_domain_arn",
+        "opensearch_security_group_id",
+        "opensearch_admin_secret_arn",
+    ]
 
     for output in required_outputs:
-        assert f'output "{output}"' in content, f"EKS output {output} should be defined"
+        assert f'output "{output}"' in content, f"OpenSearch output {output} should be defined"
+
+
+def test_ui_module_has_outputs():
+    """Test that UI (CloudFront) module defines required outputs."""
+    ui_dir = Path(__file__).parent.parent.parent / "infra" / "cloudfront_ui"
+    outputs_file = ui_dir / "outputs.tf"
+
+    assert outputs_file.exists(), "UI module should have outputs.tf"
+
+    with open(outputs_file, "r") as f:
+        content = f.read()
+
+    required_outputs = [
+        "ui_bucket_name",
+        "ui_distribution_id",
+        "ui_distribution_domain_name",
+    ]
+
+    for output in required_outputs:
+        assert f'output "{output}"' in content, f"UI output {output} should be defined"
 
 
 def test_ecr_module_has_outputs():

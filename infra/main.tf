@@ -10,16 +10,6 @@ module "vpc" {
   aws_region   = var.aws_region
 }
 
-module "eks" {
-  source       = "./eks"
-  project_name = var.project_name
-  environment  = var.environment
-  vpc_id       = module.vpc.vpc_id
-  subnet_ids   = module.vpc.private_subnet_ids # for control-plane + nodes
-
-  depends_on = [module.vpc]
-}
-
 module "mwaa" {
   source       = "./mwaa"
   project_name = var.project_name
@@ -63,6 +53,12 @@ module "opensearch_hirag" {
   depends_on = [module.vpc]
 }
 
+module "ui" {
+  source       = "./cloudfront_ui"
+  project_name = var.project_name
+  environment  = var.environment
+}
+
 module "ecr_etl" {
   source       = "./ecr"
   project_name = var.project_name
@@ -79,10 +75,6 @@ module "ecr_backend" {
 output "vpc_id" { value = module.vpc.vpc_id }
 output "private_subnet_ids" { value = module.vpc.private_subnet_ids }
 output "public_subnet_ids" { value = module.vpc.public_subnet_ids }
-
-output "eks_cluster_name" { value = module.eks.cluster_name }
-output "eks_cluster_endpoint" { value = module.eks.cluster_endpoint }
-output "eks_cluster_version" { value = module.eks.cluster_version }
 
 output "ecr_etl_repository_url" { value = module.ecr_etl.repository_url }
 output "ecr_etl_repository_name" { value = module.ecr_etl.repository_name }
@@ -110,3 +102,7 @@ output "neptune_ingest_bucket_name" { value = module.neptune_hirag.neptune_inges
 output "opensearch_domain_endpoint" { value = module.opensearch_hirag.opensearch_domain_endpoint }
 output "opensearch_domain_arn" { value = module.opensearch_hirag.opensearch_domain_arn }
 output "opensearch_admin_secret_arn" { value = module.opensearch_hirag.opensearch_admin_secret_arn }
+
+output "ui_bucket_name" { value = module.ui.ui_bucket_name }
+output "ui_distribution_id" { value = module.ui.ui_distribution_id }
+output "ui_distribution_domain_name" { value = module.ui.ui_distribution_domain_name }
