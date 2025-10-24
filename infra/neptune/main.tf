@@ -42,7 +42,7 @@ resource "aws_neptune_subnet_group" "hirag" {
 
 resource "aws_neptune_cluster_parameter_group" "lab_mode" {
   name   = "${local.cluster_identifier}-pg"
-  family = "neptune1.4"
+  family = "neptune1.2"
 
   parameter {
     name  = "neptune_dfe_query_engine"

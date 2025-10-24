@@ -150,23 +150,6 @@ resource "aws_opensearch_domain" "hirag" {
     log_type                 = "SEARCH_SLOW_LOGS"
   }
 
-  access_policies = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = "*"
-        Action = "es:*"
-        Resource = format("arn:%s:es:%s:%s:domain/%s/*", data.aws_partition.current.partition, var.aws_region, data.aws_caller_identity.current.account_id, local.domain_name)
-        Condition = {
-          IpAddress = {
-            "aws:SourceIp" = [var.vpc_cidr]
-          }
-        }
-      }
-    ]
-  })
-
   tags = local.tags
 }
 
