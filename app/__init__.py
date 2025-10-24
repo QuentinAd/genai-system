@@ -4,7 +4,7 @@ import os
 from quart import Quart
 
 from .routes import create_chat_blueprint
-from .services import ChatBotBase, OpenAIChatBot, RAGChatBot, DummyChatBot
+from .services import ChatBotBase, DummyChatBot, HiRAGService, OpenAIChatBot, RAGChatBot
 from .settings import settings
 
 logging.basicConfig(
@@ -15,7 +15,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def create_app(chatbot: ChatBotBase | None = None) -> Quart:
+def create_app(
+    chatbot: ChatBotBase | None = None,
+    *,
+    hirag_service: HiRAGService | None = None,
+) -> Quart:
     app = Quart(__name__)
     if chatbot is None:
         # Allow forcing DummyChatBot via env var for local/dev/testing
@@ -42,7 +46,14 @@ def create_app(chatbot: ChatBotBase | None = None) -> Quart:
             else:
                 logger.info("Using default OpenAIChatBot")
                 chatbot = OpenAIChatBot()
-    chat_bp = create_chat_blueprint(chatbot)
+    if hirag_service is None:
+        try:
+            hirag_service = HiRAGService()
+        except Exception as exc:  # pragma: no cover - optional dependency failures
+            logger.warning("HiRAGService unavailable: %s", exc)
+            hirag_service = None
+
+    chat_bp = create_chat_blueprint(chatbot, hirag_service=hirag_service)
     app.register_blueprint(chat_bp)
 
     @app.after_serving

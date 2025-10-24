@@ -6,6 +6,34 @@ from app import create_app
 from app.services import ChatBotBase, DummyChatBot
 
 
+class StubHiRAGService:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def chat(
+        self,
+        query: str,
+        session_id: str,
+        *,
+        mode: str = "",
+        history=None,
+    ) -> dict[str, object]:
+        self.calls.append(
+            {
+                "query": query,
+                "session_id": session_id,
+                "mode": mode,
+                "history": history,
+            }
+        )
+        return {
+            "answer": "retrieved answer",
+            "context": "retrieved context",
+            "prompt": "prompt",
+            "references": [{"title": "One"}],
+        }
+
+
 class StubChunk:
     def __init__(self, content: str | None = None, text: str | None = None) -> None:
         self.content = content
@@ -118,3 +146,73 @@ async def test_chat_endpoint_stream_tokens_mode():
         text = await resp.get_data(as_text=True)
         assert resp.status_code == 200
         assert text == "foobar"
+
+
+@pytest.mark.asyncio
+async def test_chat_endpoint_hirag_mode_includes_retrieval_metadata():
+    bot = DummyChatBot()
+    service = StubHiRAGService()
+    app = create_app(chatbot=bot, hirag_service=service)
+    async with app.test_client() as client:
+        resp = await client.post(
+            "/chat?hirag&stream=events",
+            json={
+                "message": "hello world",
+                "history": [{"role": "assistant", "content": "prev"}],
+            },
+            headers={"Session-Id": "abc123"},
+        )
+        payload = await resp.get_data(as_text=True)
+        assert resp.status_code == 200
+        events = [json.loads(line) for line in payload.splitlines() if line]
+        retrieval = events[-1]
+        assert retrieval == {
+            "event": "retrieval_metadata",
+            "data": {
+                "mode": "hi",
+                "session_id": "abc123",
+                "answer": "retrieved answer",
+                "context": "retrieved context",
+                "references": [{"title": "One"}],
+            },
+        }
+        assert service.calls
+        call = service.calls[0]
+        assert call["mode"] == "hi"
+        assert call["session_id"] == "abc123"
+        assert call["history"] == [{"role": "assistant", "content": "prev"}]
+
+
+@pytest.mark.asyncio
+async def test_chat_endpoint_rag_mode_uses_cookie_session_id():
+    bot = DummyChatBot()
+    service = StubHiRAGService()
+    app = create_app(chatbot=bot, hirag_service=service)
+    async with app.test_client() as client:
+        client.set_cookie("localhost", "Session-Id", "cookie-session")
+        resp = await client.post(
+            "/chat?rag&stream=events",
+            json={"message": "hello"},
+        )
+        payload = await resp.get_data(as_text=True)
+        assert resp.status_code == 200
+        assert service.calls
+        call = service.calls[0]
+        assert call["mode"] == "naive"
+        assert call["session_id"] == "cookie-session"
+        events = [json.loads(line) for line in payload.splitlines() if line]
+        assert events[-1]["data"]["mode"] == "naive"
+
+
+@pytest.mark.asyncio
+async def test_chat_endpoint_llm_only_skips_hirag_service():
+    bot = DummyChatBot()
+    service = StubHiRAGService()
+    app = create_app(chatbot=bot, hirag_service=service)
+    async with app.test_client() as client:
+        resp = await client.post("/chat?stream=events", json={"message": "hello"})
+        payload = await resp.get_data(as_text=True)
+        assert resp.status_code == 200
+        assert not service.calls
+        events = [json.loads(line) for line in payload.splitlines() if line]
+        assert all(evt.get("event") != "retrieval_metadata" for evt in events)

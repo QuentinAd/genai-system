@@ -7,7 +7,7 @@ from quart import Blueprint, Response, current_app, jsonify, request
 
 from .decorators import log_call, validate
 from .schema import ChatInput
-from .services import ChatBotBase
+from .services import ChatBotBase, HiRAGService
 
 
 def _route_config(route: str) -> dict[str, Any]:
@@ -31,7 +31,19 @@ def _ensure_ndjson_line(value: str | bytes) -> str:
     return json.dumps(payload) + "\n"
 
 
-def create_chat_blueprint(chatbot: ChatBotBase) -> Blueprint:
+def _resolve_retrieval_mode(query_args) -> str:
+    if "hirag" in query_args:
+        return "hi"
+    if "rag" in query_args:
+        return "naive"
+    return ""
+
+
+def create_chat_blueprint(
+    chatbot: ChatBotBase,
+    *,
+    hirag_service: HiRAGService | None = None,
+) -> Blueprint:
     chat_bp = Blueprint("chat", __name__)
 
     @chat_bp.get("/health")
@@ -53,6 +65,32 @@ def create_chat_blueprint(chatbot: ChatBotBase) -> Blueprint:
         stream_mode = request.args.get("stream", "events").lower()
         include_arg = request.args.get("include", "")
         include_events = [item.strip() for item in include_arg.split(",") if item.strip()]
+        retrieval_mode = _resolve_retrieval_mode(request.args)
+        session_id = request.headers.get("Session-Id") or request.cookies.get("Session-Id") or ""
+        history = data.history or []
+
+        retrieval_metadata: dict[str, Any] | None = None
+        if retrieval_mode:
+            if hirag_service is None:
+                current_app.logger.warning("HiRAG retrieval requested but service unavailable")
+                return jsonify({"error": "Retrieval service unavailable"}), 503
+            try:
+                retrieval = await hirag_service.chat(
+                    data.message,
+                    session_id,
+                    mode=retrieval_mode,
+                    history=history,
+                )
+            except Exception as exc:  # pragma: no cover - defensive logging
+                current_app.logger.exception("HiRAG chat failed: %%s", exc)
+                return jsonify({"error": "Retrieval failed"}), 502
+            retrieval_metadata = {
+                "mode": retrieval_mode,
+                "session_id": session_id,
+                "answer": retrieval.get("answer", ""),
+                "context": retrieval.get("context", ""),
+                "references": retrieval.get("references", []),
+            }
 
         allowed_events: list[str] | None
         if include_events:
@@ -64,7 +102,10 @@ def create_chat_blueprint(chatbot: ChatBotBase) -> Blueprint:
 
         include_log = ",".join(allowed_events) if allowed_events else "<all>"
         current_app.logger.debug(
-            "chat_endpoint stream_mode=%s include=%s", stream_mode, include_log
+            "chat_endpoint stream_mode=%s include=%s mode=%s",
+            stream_mode,
+            include_log,
+            retrieval_mode or "llm",
         )
 
         async def event_iter():
@@ -95,6 +136,12 @@ def create_chat_blueprint(chatbot: ChatBotBase) -> Blueprint:
         async def generate_events() -> AsyncGenerator[str, None]:
             async for event in event_iter():
                 yield _ensure_ndjson_line(event)
+            if retrieval_metadata is not None:
+                payload = {
+                    "event": "retrieval_metadata",
+                    "data": retrieval_metadata,
+                }
+                yield json.dumps(payload) + "\n"
 
         return Response(generate_events(), content_type="application/x-ndjson")
 

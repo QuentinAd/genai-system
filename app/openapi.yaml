@@ -1,0 +1,152 @@
+openapi: 3.1.0
+info:
+  title: GenAI Chat API
+  version: "1.0.0"
+  description: |
+    Streaming chat API powering the GenAI UI. Responses are returned as newline-delimited JSON (NDJSON)
+    events unless `stream=tokens` is requested, in which case the body is plain UTF-8 text.
+servers:
+  - url: http://localhost:8000
+paths:
+  /chat:
+    post:
+      summary: Stream a chat completion
+      description: |
+        Streams chat responses from the configured language model. Retrieval can be enabled with either the
+        `hirag` or `rag` query parameter. When enabled, the backend queries the HiRAG service and appends a
+        `retrieval_metadata` event containing the answer and supporting references.
+      parameters:
+        - in: query
+          name: stream
+          description: Selects the streaming format.
+          schema:
+            type: string
+            enum: [events, tokens]
+          required: false
+          example: events
+        - in: query
+          name: include
+          description: Comma-separated list of event names to include from the stream.
+          schema:
+            type: string
+          required: false
+          example: token,on_chat_model_end
+        - in: query
+          name: hirag
+          description: Enables hierarchical retrieval (HiRAG mode) for the request.
+          schema:
+            type: boolean
+          required: false
+        - in: query
+          name: rag
+          description: Enables naive retrieval mode (HiRAG naive mode).
+          schema:
+            type: boolean
+          required: false
+        - in: header
+          name: Session-Id
+          description: Session identifier forwarded to the HiRAG service when retrieval is enabled.
+          schema:
+            type: string
+          required: false
+        - in: cookie
+          name: Session-Id
+          description: Session identifier forwarded to the HiRAG service when retrieval is enabled.
+          schema:
+            type: string
+          required: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatInput'
+      responses:
+        '200':
+          description: Streaming NDJSON events (default) or plain UTF-8 tokens when `stream=tokens`.
+          content:
+            application/x-ndjson:
+              schema:
+                $ref: '#/components/schemas/ChatEvent'
+            text/plain:
+              schema:
+                type: string
+          headers:
+            Content-Type:
+              schema:
+                type: string
+              description: application/x-ndjson for event streams or text/plain for token streams.
+        '400':
+          description: Invalid request payload.
+        '502':
+          description: Retrieval service failed while attempting HiRAG mode.
+        '503':
+          description: Retrieval service unavailable when HiRAG or naive RAG mode is requested.
+  /models:
+    get:
+      summary: List supported chat models
+      responses:
+        '200':
+          description: Model metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /health:
+    get:
+      summary: Service health check
+      responses:
+        '200':
+          description: Health check response
+          content:
+            text/plain:
+              schema:
+                type: string
+components:
+  schemas:
+    ChatInput:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          description: Latest user utterance to send to the language model.
+        history:
+          type: array
+          description: Optional conversation history forwarded to HiRAG when retrieval is enabled.
+          items:
+            oneOf:
+              - type: object
+                additionalProperties: true
+              - type: array
+                items: {}
+              - type: string
+      examples:
+        default:
+          message: "Summarise the latest updates"
+          history:
+            - role: user
+              content: "Hi"
+            - role: assistant
+              content: "Hello"
+    ChatEvent:
+      type: object
+      properties:
+        event:
+          type: string
+          description: Event name (for example `token`, `on_chat_model_end`, `retrieval_metadata`).
+        data:
+          description: Event payload. Shape varies by event name.
+          oneOf:
+            - type: string
+            - type: object
+      example:
+        event: retrieval_metadata
+        data:
+          mode: hi
+          answer: "retrieved answer"
+          session_id: "abc123"
+          references:
+            - title: "One"

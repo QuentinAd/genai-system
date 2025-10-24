@@ -55,6 +55,13 @@ class StubLLMNoEvents(StubLLM):
 async def test_chat_input_validation():
     data = ChatInput(message="hello")
     assert data.message == "hello"
+    assert data.history is None
+
+    with_history = ChatInput(
+        message="hello",
+        history=[{"role": "assistant", "content": "Hi there"}],
+    )
+    assert with_history.history == [{"role": "assistant", "content": "Hi there"}]
 
     with pytest.raises(ValidationError):
         ChatInput(message="")
