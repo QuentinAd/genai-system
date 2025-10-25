@@ -133,6 +133,7 @@ async def test_chat_uses_hierarchical_mode_by_default(monkeypatch):
     assert result["answer"] == stub_response
     assert result["references"] == [{"id": "0", "content": "Chunk A"}]
     assert "Chunk A" in result["prompt"]
+    assert "references:" in result["prompt"].lower()
 
 
 @pytest.mark.asyncio
@@ -151,6 +152,7 @@ async def test_chat_supports_naive_mode(monkeypatch):
     assert second_call.mode == "naive"
     assert second_call.only_need_context is False
     assert result["answer"] == "Naive answer"
+    assert "references:" in result["prompt"].lower()
 
 
 @pytest.mark.asyncio

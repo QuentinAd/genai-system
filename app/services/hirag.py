@@ -173,9 +173,15 @@ class HiRAGService:
         context_param = replace(base_param, only_need_context=True)
 
         context = await self._hirag.aquery(query, context_param)
-        prompt = self._compose_prompt(query, session_id, history, context)
-        answer = await self._hirag.aquery(query, base_param)
         references = self._extract_references(context)
+        prompt = self._compose_prompt(
+            query,
+            session_id,
+            history,
+            context,
+            references,
+        )
+        answer = await self._hirag.aquery(query, base_param)
 
         return {
             "answer": answer,
@@ -198,6 +204,7 @@ class HiRAGService:
         session_id: str,
         history: Sequence[Mapping[str, Any] | Sequence[str] | str] | None,
         context: str,
+        references: list[dict[str, str]],
     ) -> str:
         parts: list[str] = []
         if session_id:
@@ -209,6 +216,8 @@ class HiRAGService:
         parts.append(f"user: {query}")
         if context:
             parts.append("retrieved context:\n" + context.strip())
+        if references:
+            parts.append(self._render_references(references))
         return "\n\n".join(parts)
 
     def _normalize_history_entry(
@@ -245,6 +254,17 @@ class HiRAGService:
             padded = row + [""] * (len(headers) - len(row))
             references.append({headers[idx]: padded[idx] for idx in range(len(headers))})
         return references
+
+    def _render_references(self, references: list[dict[str, str]]) -> str:
+        lines = ["references:"]
+        for ref in references:
+            parts = [f"{key}={value}" for key, value in ref.items() if value]
+            if not parts:
+                continue
+            lines.append("- " + "; ".join(parts))
+        if len(lines) == 1:
+            return "references: <none>"
+        return "\n".join(lines)
 
 
 __all__ = ["HiRAGService"]
