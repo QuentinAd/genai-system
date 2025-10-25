@@ -18,8 +18,8 @@ afterEach(() => {
 
 test("mode toggles are mutually exclusive and persist per session", () => {
   const { unmount } = render(<App />);
-  const hiragToggle = screen.getByRole("button", { name: /toggle hirag mode/i });
-  const ragToggle = screen.getByRole("button", { name: /toggle rag mode/i });
+  const hiragToggle = screen.getByRole("button", { name: /hirag retrieval/i });
+  const ragToggle = screen.getByRole("button", { name: /rag retrieval/i });
 
   expect(hiragToggle).toHaveAttribute("aria-pressed", "false");
   expect(ragToggle).toHaveAttribute("aria-pressed", "false");
@@ -37,15 +37,15 @@ test("mode toggles are mutually exclusive and persist per session", () => {
   unmount();
 
   render(<App />);
-  const persistedHirag = screen.getByRole("button", { name: /toggle hirag mode/i });
-  const persistedRag = screen.getByRole("button", { name: /toggle rag mode/i });
+  const persistedHirag = screen.getByRole("button", { name: /hirag retrieval/i });
+  const persistedRag = screen.getByRole("button", { name: /rag retrieval/i });
   expect(persistedHirag).toHaveAttribute("aria-pressed", "false");
   expect(persistedRag).toHaveAttribute("aria-pressed", "true");
 });
 
 test("selected mode adds query param to chat request", async () => {
   render(<App />);
-  const hiragToggle = screen.getByRole("button", { name: /toggle hirag mode/i });
+  const hiragToggle = screen.getByRole("button", { name: /hirag retrieval/i });
   fireEvent.click(hiragToggle);
 
   fireEvent.change(screen.getByPlaceholderText("Type your message..."), {
@@ -63,7 +63,7 @@ test("selected mode adds query param to chat request", async () => {
 
   fetchMock.mockClear();
 
-  const ragToggle = screen.getByRole("button", { name: /toggle rag mode/i });
+  const ragToggle = screen.getByRole("button", { name: /rag retrieval/i });
   fireEvent.click(ragToggle);
 
   fireEvent.change(screen.getByPlaceholderText("Type your message..."), {

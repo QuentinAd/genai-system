@@ -248,12 +248,12 @@ function App() {
           const { value, done } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
-          let idx: number;
-          // eslint-disable-next-line no-cond-assign
-          while ((idx = buffer.indexOf("\n")) !== -1) {
+          let idx = buffer.indexOf("\n");
+          while (idx !== -1) {
             const line = buffer.slice(0, idx).trim();
             buffer = buffer.slice(idx + 1);
             processLine(line);
+            idx = buffer.indexOf("\n");
           }
         }
         const remainder = buffer.trim();
@@ -455,7 +455,7 @@ function App() {
                 <button
                   type="button"
                   className={toggleClass("hirag")}
-                  aria-label="Toggle HiRAG mode"
+                  aria-label="Enable HiRAG retrieval"
                   aria-pressed={mode === "hirag"}
                   title="HiRAG: hierarchical retrieval for richer answers"
                   onClick={() => setMode((prev) => (prev === "hirag" ? null : "hirag"))}
@@ -465,7 +465,7 @@ function App() {
                 <button
                   type="button"
                   className={toggleClass("rag")}
-                  aria-label="Toggle RAG mode"
+                  aria-label="Enable RAG retrieval"
                   aria-pressed={mode === "rag"}
                   title="RAG: standard retrieval-augmented responses"
                   onClick={() => setMode((prev) => (prev === "rag" ? null : "rag"))}
