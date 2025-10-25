@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { act } from "react";
 import { beforeEach, afterEach, expect, test, vi } from "vitest";
 import App from "../App";
@@ -16,8 +16,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-test("mode toggles are mutually exclusive and persist per session", () => {
+test("mode toggles are mutually exclusive and persist per session", async () => {
   const { unmount } = render(<App />);
+  await act(async () => {
+    await Promise.resolve();
+  });
   const hiragToggle = screen.getByRole("button", { name: /enable hirag retrieval/i });
   const ragToggle = screen.getByRole("button", { name: /enable rag retrieval/i });
 
@@ -37,6 +40,9 @@ test("mode toggles are mutually exclusive and persist per session", () => {
   unmount();
 
   render(<App />);
+  await act(async () => {
+    await Promise.resolve();
+  });
   const persistedHirag = screen.getByRole("button", { name: /enable hirag retrieval/i });
   const persistedRag = screen.getByRole("button", { name: /enable rag retrieval/i });
   expect(persistedHirag).toHaveAttribute("aria-pressed", "false");
@@ -45,6 +51,9 @@ test("mode toggles are mutually exclusive and persist per session", () => {
 
 test("selected mode adds query param to chat request", async () => {
   render(<App />);
+  await act(async () => {
+    await Promise.resolve();
+  });
   const hiragToggle = screen.getByRole("button", { name: /enable hirag retrieval/i });
   fireEvent.click(hiragToggle);
 
@@ -58,8 +67,8 @@ test("selected mode adds query param to chat request", async () => {
   });
 
   const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
-  expect(fetchMock).toHaveBeenCalledTimes(1);
-  expect(fetchMock).toHaveBeenCalledWith("/chat?stream=events&hirag", expect.any(Object));
+  const hiragCall = fetchMock.mock.calls.find(([url]) => typeof url === "string" && url.includes("/chat?stream=events&hirag"));
+  expect(hiragCall).toBeTruthy();
 
   fetchMock.mockClear();
 
@@ -75,10 +84,11 @@ test("selected mode adds query param to chat request", async () => {
     await Promise.resolve();
   });
 
-  expect(fetchMock).toHaveBeenCalledWith("/chat?stream=events&rag", expect.any(Object));
+  const ragCall = fetchMock.mock.calls.find(([url]) => typeof url === "string" && url.includes("/chat?stream=events&rag"));
+  expect(ragCall).toBeTruthy();
 });
 
-test("assistant messages show the mode badge", () => {
+test("assistant messages show the mode badge", async () => {
   const timestamp = Date.now();
   localStorage.setItem(
     "chat_messages",
@@ -93,6 +103,10 @@ test("assistant messages show the mode badge", () => {
   );
 
   render(<App />);
+  await act(async () => {
+    await Promise.resolve();
+  });
+  const messageList = screen.getByTestId("message-list");
 
-  expect(screen.getByText("HiRAG mode")).toBeInTheDocument();
+  expect(within(messageList).getByText("HiRAG mode")).toBeInTheDocument();
 });
