@@ -27,3 +27,8 @@ variable "vpc_cidr" {
   description = "Primary CIDR block of the VPC hosting MWAA"
   type        = string
 }
+
+variable "aws_region" {
+  description = "AWS region for MWAA dependencies"
+  type        = string
+}

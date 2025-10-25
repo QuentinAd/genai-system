@@ -19,6 +19,7 @@ module "mwaa" {
   private_subnets  = module.vpc.private_subnet_ids # to live in private subnets
   dags_bucket_name = module.s3_data.dags_bucket_name
   data_bucket_name = module.s3_data.data_bucket_name
+  aws_region       = var.aws_region
 
   depends_on = [module.vpc]
 }

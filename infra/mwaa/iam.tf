@@ -1,5 +1,5 @@
 resource "aws_iam_role" "mwaa_exec" {
-  name = "${var.project_name}-mwaa-exec"
+  name               = "${var.project_name}-mwaa-exec"
   assume_role_policy = data.aws_iam_policy_document.mwaa_trust.json
 }
 
@@ -14,18 +14,26 @@ data "aws_iam_policy_document" "mwaa_trust" {
   }
 }
 
-resource "aws_iam_policy" "mwaa_s3" {
-  name        = "${var.project_name}-mwaa-s3-policy"
-  description = "Allow MWAA to access DAGs and data buckets"
-  policy = data.aws_iam_policy_document.mwaa_s3.json
+data "aws_caller_identity" "current" {}
+
+resource "aws_iam_policy" "mwaa_execution" {
+  name        = "${var.project_name}-mwaa-exec-policy"
+  description = "Execution permissions for Amazon MWAA"
+  policy      = data.aws_iam_policy_document.mwaa_execution.json
 }
 
-data "aws_iam_policy_document" "mwaa_s3" {
+data "aws_iam_policy_document" "mwaa_execution" {
   statement {
     effect = "Allow"
     actions = [
       "s3:GetObject",
+      "s3:GetObjectVersion",
+      "s3:DeleteObject",
+      "s3:AbortMultipartUpload",
+      "s3:ListBucketMultipartUploads",
       "s3:ListBucket",
+      "s3:GetBucketLocation",
+      "s3:GetBucketAcl",
       "s3:PutObject"
     ]
     resources = [
@@ -43,33 +51,83 @@ data "aws_iam_policy_document" "mwaa_s3" {
   }
 
   statement {
-    effect = "Allow"
-    actions = [
-      "s3:GetBucketPublicAccessBlock"
-    ]
+    effect  = "Allow"
+    actions = ["s3:GetBucketPublicAccessBlock"]
     resources = [
       "arn:aws:s3:::${var.project_name}-dags",
       "arn:aws:s3:::${var.project_name}-data"
     ]
   }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:DescribeLogGroups",
+      "logs:DescribeLogStreams",
+      "logs:PutLogEvents",
+      "logs:GetLogEvents"
+    ]
+    resources = [
+      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:airflow-*",
+      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:airflow-*:*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "sqs:ChangeMessageVisibility",
+      "sqs:DeleteMessage",
+      "sqs:GetQueueAttributes",
+      "sqs:GetQueueUrl",
+      "sqs:ReceiveMessage",
+      "sqs:SendMessage"
+    ]
+    resources = [
+      "arn:aws:sqs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:airflow-celery-*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:GetAuthorizationToken",
+      "ecr:GetDownloadUrlForLayer"
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = ["Airflow"]
+    }
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "kms:Decrypt",
+      "kms:GenerateDataKey"
+    ]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["airflow.${var.aws_region}.amazonaws.com"]
+    }
+  }
 }
 
-resource "aws_iam_role_policy_attachment" "mwaa_s3" {
+resource "aws_iam_role_policy_attachment" "mwaa_execution" {
   role       = aws_iam_role.mwaa_exec.name
-  policy_arn = aws_iam_policy.mwaa_s3.arn
-}
-
-resource "aws_iam_role_policy_attachment" "mwaa_service_managed" {
-  role       = aws_iam_role.mwaa_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonMWAAServiceRolePolicy"
-}
-
-resource "aws_iam_role_policy_attachment" "mwaa_scheduler_managed" {
-  role       = aws_iam_role.mwaa_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonMWAASchedulerAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "mwaa_webserver_managed" {
-  role       = aws_iam_role.mwaa_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonMWAAWebServerAccess"
+  policy_arn = aws_iam_policy.mwaa_execution.arn
 }
