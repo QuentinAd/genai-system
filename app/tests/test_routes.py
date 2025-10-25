@@ -9,8 +9,13 @@ from app.services import chat_history_store
 
 @pytest.fixture(autouse=True)
 def stub_chat_history(monkeypatch):
-    calls: dict[str, list] = {"append": [], "get": []}
+    calls: dict[str, list] = {"append": [], "get": [], "list": [], "messages": [], "clear": []}
     history: list[dict[str, str]] = []
+    state = {
+        "sessions_result": ([], None),
+        "messages_map": {},
+        "delete_existing": set(),
+    }
 
     async def fake_get(session_id: str):
         calls["get"].append(session_id)
@@ -27,10 +32,35 @@ def stub_chat_history(monkeypatch):
             }
         )
 
+    async def fake_list(cursor: str | None = None, limit: int = 20):
+        calls["list"].append({"cursor": cursor, "limit": limit})
+        sessions, next_cursor = state["sessions_result"]
+        return sessions, next_cursor
+
+    async def fake_get_messages(
+        session_id: str,
+        *,
+        cursor: str | None = None,
+        limit: int = 50,
+    ):
+        calls["messages"].append({"session_id": session_id, "cursor": cursor, "limit": limit})
+        messages, next_cursor = state["messages_map"].get(session_id, ([], None))
+        return messages, next_cursor
+
+    async def fake_delete(session_id: str) -> bool:
+        calls["clear"].append(session_id)
+        if session_id in state["delete_existing"]:
+            state["delete_existing"].remove(session_id)
+            return True
+        return False
+
     monkeypatch.setattr(chat_history_store, "get_history", fake_get)
     monkeypatch.setattr(chat_history_store, "append_message", fake_append)
+    monkeypatch.setattr(chat_history_store, "list_sessions", fake_list)
+    monkeypatch.setattr(chat_history_store, "get_session_messages", fake_get_messages)
+    monkeypatch.setattr(chat_history_store, "delete_session", fake_delete)
 
-    return {"calls": calls, "history": history}
+    return {"calls": calls, "history": history, "state": state}
 
 
 class StubHiRAGService:
@@ -197,7 +227,7 @@ async def test_chat_endpoint_hirag_mode_includes_retrieval_metadata(stub_chat_hi
         assert retrieval == {
             "event": "retrieval_metadata",
             "data": {
-                "mode": "hi",
+                "mode": "hirag",
                 "session_id": "abc123",
                 "answer": "retrieved answer",
                 "context": "retrieved context",
@@ -215,10 +245,10 @@ async def test_chat_endpoint_hirag_mode_includes_retrieval_metadata(stub_chat_hi
         append_calls = stub_chat_history["calls"]["append"]
         assert append_calls[0]["role"] == "user"
         assert append_calls[0]["content"] == "hello world"
-        assert append_calls[0]["mode"] == "hi"
+        assert append_calls[0]["mode"] == "hirag"
         assert append_calls[1]["role"] == "assistant"
         assert append_calls[1]["content"] == "helloworld"
-        assert append_calls[1]["mode"] == "hi"
+        assert append_calls[1]["mode"] == "hirag"
 
 
 @pytest.mark.asyncio
@@ -239,10 +269,10 @@ async def test_chat_endpoint_rag_mode_uses_cookie_session_id(stub_chat_history):
         assert call["mode"] == "naive"
         assert call["session_id"] == "cookie-session"
         events = [json.loads(line) for line in payload.splitlines() if line]
-        assert events[-1]["data"]["mode"] == "naive"
+        assert events[-1]["data"]["mode"] == "rag"
         append_calls = stub_chat_history["calls"]["append"]
-        assert append_calls[0]["mode"] == "naive"
-        assert append_calls[1]["mode"] == "naive"
+        assert append_calls[0]["mode"] == "rag"
+        assert append_calls[1]["mode"] == "rag"
 
 
 @pytest.mark.asyncio
@@ -266,3 +296,71 @@ async def test_chat_endpoint_llm_only_skips_hirag_service(stub_chat_history):
         assert {call["mode"] for call in append_calls} == {"llm"}
         assert append_calls[0]["content"] == "hello"
         assert append_calls[1]["content"] == "hello"
+
+
+@pytest.mark.asyncio
+async def test_list_chat_history_endpoint(stub_chat_history):
+    bot = DummyChatBot()
+    app = create_app(chatbot=bot)
+    stub_chat_history["state"]["sessions_result"] = (
+        [
+            {
+                "session_id": "abc",
+                "updated_at": "2024-01-01T00:00:00Z",
+                "mode": "llm",
+                "preview": "Hi",
+                "last_message": {"role": "assistant", "content": "Hi"},
+            }
+        ],
+        "cursor-1",
+    )
+
+    async with app.test_client() as client:
+        resp = await client.get("/chat_history?limit=5")
+        data = await resp.get_json()
+        assert resp.status_code == 200
+        assert data["sessions"][0]["session_id"] == "abc"
+        assert data["next"] == "cursor-1"
+        calls = stub_chat_history["calls"]["list"]
+        assert calls[0]["limit"] == 5
+
+
+@pytest.mark.asyncio
+async def test_fetch_chat_history_endpoint(stub_chat_history):
+    bot = DummyChatBot()
+    app = create_app(chatbot=bot)
+    stub_chat_history["state"]["messages_map"]["abc"] = (
+        [
+            {
+                "role": "user",
+                "content": "Hello",
+                "timestamp": "2024-01-01T00:00:00Z",
+                "mode": "llm",
+                "events": [],
+            }
+        ],
+        None,
+    )
+
+    async with app.test_client() as client:
+        resp = await client.get("/chat_history/abc")
+        data = await resp.get_json()
+        assert resp.status_code == 200
+        assert data["messages"][0]["content"] == "Hello"
+        assert data["next"] is None
+        calls = stub_chat_history["calls"]["messages"]
+        assert calls[0]["session_id"] == "abc"
+
+
+@pytest.mark.asyncio
+async def test_clear_chat_history_endpoint(stub_chat_history):
+    bot = DummyChatBot()
+    app = create_app(chatbot=bot)
+    stub_chat_history["state"]["delete_existing"].add("abc")
+
+    async with app.test_client() as client:
+        resp = await client.delete("/chat_history/abc")
+        assert resp.status_code == 204
+
+        resp_missing = await client.delete("/chat_history/abc")
+        assert resp_missing.status_code == 404

@@ -17,6 +17,9 @@ __all__ = [
     "SQLiteChatHistoryBackend",
     "get_history",
     "append_message",
+    "list_sessions",
+    "get_session_messages",
+    "delete_session",
 ]
 
 _ATTR_MODULE_MAP = {
@@ -31,6 +34,9 @@ _ATTR_MODULE_MAP = {
     "SQLiteChatHistoryBackend": "app.services.chat_history_store",
     "get_history": "app.services.chat_history_store",
     "append_message": "app.services.chat_history_store",
+    "list_sessions": "app.services.chat_history_store",
+    "get_session_messages": "app.services.chat_history_store",
+    "delete_session": "app.services.chat_history_store",
 }
 
 
@@ -52,7 +58,10 @@ if TYPE_CHECKING:  # pragma: no cover - import for type checkers only
         DynamoChatHistoryBackend,
         SQLiteChatHistoryBackend,
         append_message,
+        delete_session,
+        get_session_messages,
         get_history,
+        list_sessions,
     )
     from .hirag import HiRAGService
     from .openai import OpenAIChatBot

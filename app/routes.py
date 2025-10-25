@@ -73,6 +73,16 @@ def _resolve_retrieval_mode(query_args) -> str:
     return ""
 
 
+def _parse_positive_int(value: str | None, default: int) -> int:
+    if not value:
+        return default
+    try:
+        parsed = int(value)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+
 def create_chat_blueprint(
     chatbot: ChatBotBase,
     *,
@@ -118,7 +128,12 @@ def create_chat_blueprint(
             else:
                 merged_history.append(entry)
 
-        conversation_mode = retrieval_mode or "llm"
+        if retrieval_mode == "hi":
+            conversation_mode = "hirag"
+        elif retrieval_mode == "naive":
+            conversation_mode = "rag"
+        else:
+            conversation_mode = "llm"
 
         retrieval_metadata: dict[str, Any] | None = None
         if retrieval_mode:
@@ -135,8 +150,9 @@ def create_chat_blueprint(
             except Exception as exc:  # pragma: no cover - defensive logging
                 current_app.logger.exception("HiRAG chat failed: %%s", exc)
                 return jsonify({"error": "Retrieval failed"}), 502
+            response_mode = conversation_mode if retrieval_mode else "llm"
             retrieval_metadata = {
-                "mode": retrieval_mode,
+                "mode": response_mode,
                 "session_id": session_id,
                 "answer": retrieval.get("answer", ""),
                 "context": retrieval.get("context", ""),
@@ -215,5 +231,41 @@ def create_chat_blueprint(
                 yield json.dumps(payload) + "\n"
 
         return Response(generate_events(), content_type="application/x-ndjson")
+
+    @chat_bp.get("/chat_history")
+    async def list_chat_history() -> Response:
+        cursor = request.args.get("cursor") or None
+        limit = _parse_positive_int(request.args.get("limit"), 20)
+        sessions, next_cursor = await chat_history_store.list_sessions(
+            cursor=cursor,
+            limit=limit,
+        )
+        payload = {
+            "sessions": sessions or [],
+            "next": next_cursor,
+        }
+        return jsonify(payload)
+
+    @chat_bp.get("/chat_history/<session_id>")
+    async def fetch_chat_history(session_id: str) -> Response:
+        cursor = request.args.get("cursor") or None
+        limit = _parse_positive_int(request.args.get("limit"), 50)
+        messages, next_cursor = await chat_history_store.get_session_messages(
+            session_id,
+            cursor=cursor,
+            limit=limit,
+        )
+        payload = {
+            "messages": messages or [],
+            "next": next_cursor,
+        }
+        return jsonify(payload)
+
+    @chat_bp.delete("/chat_history/<session_id>")
+    async def clear_chat_history(session_id: str) -> Response:
+        deleted = await chat_history_store.delete_session(session_id)
+        if not deleted:
+            return jsonify({"error": "Session not found"}), 404
+        return Response(status=204)
 
     return chat_bp
