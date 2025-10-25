@@ -141,6 +141,30 @@ async def test_openai_chatbot_uses_settings_api_key(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_openai_chatbot_build_request_includes_history(monkeypatch):
+    from app.services import openai as openai_module
+
+    monkeypatch.setattr(openai_module.settings, "openai_api_key", None, raising=False)
+
+    def fake_chat_openai(*args, **kwargs):  # noqa: D401 - simple stub
+        return StubLLM()
+
+    monkeypatch.setattr(openai_module, "ChatOpenAI", fake_chat_openai)
+
+    bot = OpenAIChatBot()
+    history = [
+        {"role": "system", "content": "You are helpful."},
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "Hi"},
+    ]
+    messages = bot.build_request("How are you?", history=history)
+
+    # Expect conversation preserved and final user message appended.
+    assert [msg.type for msg in messages] == ["system", "human", "ai", "human"]
+    assert messages[-1].content == "How are you?"
+
+
+@pytest.mark.asyncio
 async def test_chatbot_stream_events_include_only_tokens():
     bot = ChatBotBase("stub", llm=StubLLM())
     events = [

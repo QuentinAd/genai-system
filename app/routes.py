@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from typing import Any, AsyncGenerator
 
 from quart import Blueprint, Response, current_app, jsonify, request
 
 from .decorators import log_call, validate
 from .schema import ChatInput
-from .services import ChatBotBase, HiRAGService
+from .services import ChatBotBase, HiRAGService, chat_history_store
 
 
 def _route_config(route: str) -> dict[str, Any]:
@@ -29,6 +30,39 @@ def _ensure_ndjson_line(value: str | bytes) -> str:
         "data": text.rstrip("\n"),
     }
     return json.dumps(payload) + "\n"
+
+
+def _extract_token_text(line: str) -> str | None:
+    try:
+        payload = json.loads(line)
+    except json.JSONDecodeError:
+        text = line.strip()
+        return text or None
+    if payload.get("event") != "token":
+        return None
+    token = payload.get("data")
+    if isinstance(token, str) and token:
+        return token
+    return None
+
+
+def _format_history_entries(
+    entries: Sequence[Mapping[str, Any] | Sequence[str] | str],
+) -> list[dict[str, str]]:
+    formatted: list[dict[str, str]] = []
+    for entry in entries:
+        if isinstance(entry, Mapping):
+            role = str(entry.get("role", "user")).strip() or "user"
+            content = str(entry.get("content", "")).strip()
+        elif isinstance(entry, Sequence) and not isinstance(entry, (str, bytes)):
+            role = str(entry[0] if entry else "user").strip() or "user"
+            content = str(entry[1] if len(entry) > 1 else "").strip()
+        else:
+            role = "user"
+            content = str(entry).strip()
+        if content:
+            formatted.append({"role": role, "content": content})
+    return formatted
 
 
 def _resolve_retrieval_mode(query_args) -> str:
@@ -68,6 +102,23 @@ def create_chat_blueprint(
         retrieval_mode = _resolve_retrieval_mode(request.args)
         session_id = request.headers.get("Session-Id") or request.cookies.get("Session-Id") or ""
         history = data.history or []
+        persisted_history = await chat_history_store.get_history(session_id)
+
+        merged_history: list[Mapping[str, Any] | Sequence[str] | str] = []
+        for entry in persisted_history:
+            if isinstance(entry, Mapping):
+                merged_history.append(dict(entry))
+            else:
+                merged_history.append(entry)
+        for entry in history:
+            if isinstance(entry, Mapping):
+                merged_history.append(dict(entry))
+            elif isinstance(entry, Sequence) and not isinstance(entry, (str, bytes)):
+                merged_history.append(list(entry))
+            else:
+                merged_history.append(entry)
+
+        conversation_mode = retrieval_mode or "llm"
 
         retrieval_metadata: dict[str, Any] | None = None
         if retrieval_mode:
@@ -79,7 +130,7 @@ def create_chat_blueprint(
                     data.message,
                     session_id,
                     mode=retrieval_mode,
-                    history=history,
+                    history=merged_history,
                 )
             except Exception as exc:  # pragma: no cover - defensive logging
                 current_app.logger.exception("HiRAG chat failed: %%s", exc)
@@ -91,6 +142,16 @@ def create_chat_blueprint(
                 "context": retrieval.get("context", ""),
                 "references": retrieval.get("references", []),
             }
+
+        if session_id:
+            await chat_history_store.append_message(
+                session_id,
+                "user",
+                data.message,
+                conversation_mode,
+            )
+
+        llm_history = _format_history_entries(merged_history)
 
         allowed_events: list[str] | None
         if include_events:
@@ -108,34 +169,44 @@ def create_chat_blueprint(
             retrieval_mode or "llm",
         )
 
-        async def event_iter():
-            async for event in chatbot.stream_events(
-                data.message,
-                config=_route_config("/chat"),
-                include_events=allowed_events,
-            ):
-                yield event
+        assistant_chunks: list[str] = []
+
+        async def ndjson_event_iter() -> AsyncGenerator[str, None]:
+            try:
+                async for event in chatbot.stream_events(
+                    data.message,
+                    config=_route_config("/chat"),
+                    include_events=allowed_events,
+                    history=llm_history,
+                ):
+                    line = _ensure_ndjson_line(event)
+                    token = _extract_token_text(line)
+                    if token:
+                        assistant_chunks.append(token)
+                    yield line
+            finally:
+                if session_id and assistant_chunks:
+                    assistant_text = "".join(assistant_chunks)
+                    await chat_history_store.append_message(
+                        session_id,
+                        "assistant",
+                        assistant_text,
+                        conversation_mode,
+                    )
 
         if stream_mode == "tokens":
 
             async def generate_tokens() -> AsyncGenerator[bytes, None]:
-                async for event in event_iter():
-                    line = _ensure_ndjson_line(event)
-                    try:
-                        payload = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    if payload.get("event") != "token":
-                        continue
-                    token = payload.get("data")
-                    if isinstance(token, str) and token:
+                async for line in ndjson_event_iter():
+                    token = _extract_token_text(line)
+                    if token:
                         yield token.encode()
 
             return Response(generate_tokens(), content_type="text/plain")
 
         async def generate_events() -> AsyncGenerator[str, None]:
-            async for event in event_iter():
-                yield _ensure_ndjson_line(event)
+            async for line in ndjson_event_iter():
+                yield line
             if retrieval_metadata is not None:
                 payload = {
                     "event": "retrieval_metadata",

@@ -15,6 +15,8 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from app.settings import settings
+
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _VENDOR_DIR = _REPO_ROOT / "third_party" / "hhy-huang_hirag"
@@ -112,7 +114,7 @@ class HiRAGService:
         if query_param_cls is None:
             query_param_cls = _get_vendor_symbols()[1]
         self._query_param_cls = query_param_cls
-        self._aws_region = os.getenv("AWS_REGION")
+        self._aws_region = settings.aws_region or os.getenv("AWS_REGION")
         self._hirag = hirag or self._create_hirag_instance(
             hirag_cls or _get_vendor_symbols()[0], working_dir, hirag_kwargs
         )

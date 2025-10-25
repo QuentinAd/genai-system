@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import logging
 import os
+from typing import TYPE_CHECKING
 
 from quart import Quart
 
-from .routes import create_chat_blueprint
-from .services import ChatBotBase, DummyChatBot, HiRAGService, OpenAIChatBot, RAGChatBot
 from .settings import settings
+
+if TYPE_CHECKING:
+    from .services import ChatBotBase, HiRAGService
 
 logging.basicConfig(
     level=logging.DEBUG if settings.logging_level == "DEBUG" else logging.WARNING,
@@ -20,6 +24,9 @@ def create_app(
     *,
     hirag_service: HiRAGService | None = None,
 ) -> Quart:
+    from .routes import create_chat_blueprint
+    from .services import DummyChatBot, HiRAGService, OpenAIChatBot, RAGChatBot
+
     app = Quart(__name__)
     if chatbot is None:
         # Allow forcing DummyChatBot via env var for local/dev/testing

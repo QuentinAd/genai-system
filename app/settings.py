@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     use_dummy: bool = False
     timeout_seconds: float = 30.0
     chat_max_concurrency: int = 4
+    chat_history_table: str | None = None
+    chat_history_endpoint_url: str | None = None
+    chat_history_sqlite_path: str | None = None
+    aws_region: str | None = None
 
 
 settings = Settings()

@@ -162,7 +162,12 @@ class ChatBotBase:
         self.client = client or httpx.AsyncClient()
         self.llm = llm
 
-    def build_request(self, message: str) -> Any:
+    def build_request(
+        self,
+        message: str,
+        *,
+        history: Sequence[Mapping[str, Any] | Sequence[str] | str] | None = None,
+    ) -> Any:
         """Prepare the request payload sent to the underlying LLM."""
         return message
 
@@ -171,11 +176,12 @@ class ChatBotBase:
         message: str,
         *,
         config: RunnableConfig | None = None,
+        history: Sequence[Mapping[str, Any] | Sequence[str] | str] | None = None,
     ) -> AsyncGenerator[str, None]:
         if self.llm is None:
             raise NotImplementedError("Subclasses without an LLM must override stream_chat")
 
-        request = self.build_request(message)
+        request = self.build_request(message, history=history)
         call_kwargs = {"config": config} if config is not None else {}
 
         stream_fn = getattr(self.llm, "astream", None)
@@ -210,12 +216,13 @@ class ChatBotBase:
         *,
         config: RunnableConfig | None = None,
         include_events: Sequence[str] | None = None,
+        history: Sequence[Mapping[str, Any] | Sequence[str] | str] | None = None,
     ) -> AsyncGenerator[str, None]:
         allowed = set(include_events) if include_events else None
         logger.info("stream_events start len=%s include=%s", len(message), allowed)
 
         if self.llm is not None:
-            request = self.build_request(message)
+            request = self.build_request(message, history=history)
             call_kwargs = {"config": config} if config is not None else {}
             event_stream = getattr(self.llm, "astream_events", None)
             if callable(event_stream):
@@ -251,7 +258,7 @@ class ChatBotBase:
             yield payload
             emitted = True
 
-        async for token in self.stream_chat(message, config=config):
+        async for token in self.stream_chat(message, config=config, history=history):
             if not token:
                 continue
             if should_stream_tokens:
@@ -317,6 +324,7 @@ class DummyChatBot(ChatBotBase):
         message: str,
         *,
         config: RunnableConfig | None = None,
+        history: Sequence[Mapping[str, Any] | Sequence[str] | str] | None = None,
     ) -> AsyncGenerator[str, None]:
         for word in message.split():
             yield word

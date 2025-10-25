@@ -4,6 +4,33 @@ import pytest
 
 from app import create_app
 from app.services import ChatBotBase, DummyChatBot
+from app.services import chat_history_store
+
+
+@pytest.fixture(autouse=True)
+def stub_chat_history(monkeypatch):
+    calls: dict[str, list] = {"append": [], "get": []}
+    history: list[dict[str, str]] = []
+
+    async def fake_get(session_id: str):
+        calls["get"].append(session_id)
+        # Return a copy to prevent in-place mutation by caller.
+        return [dict(entry) for entry in history]
+
+    async def fake_append(session_id: str, role: str, content: str, mode: str) -> None:
+        calls["append"].append(
+            {
+                "session_id": session_id,
+                "role": role,
+                "content": content,
+                "mode": mode,
+            }
+        )
+
+    monkeypatch.setattr(chat_history_store, "get_history", fake_get)
+    monkeypatch.setattr(chat_history_store, "append_message", fake_append)
+
+    return {"calls": calls, "history": history}
 
 
 class StubHiRAGService:
@@ -149,10 +176,11 @@ async def test_chat_endpoint_stream_tokens_mode():
 
 
 @pytest.mark.asyncio
-async def test_chat_endpoint_hirag_mode_includes_retrieval_metadata():
+async def test_chat_endpoint_hirag_mode_includes_retrieval_metadata(stub_chat_history):
     bot = DummyChatBot()
     service = StubHiRAGService()
     app = create_app(chatbot=bot, hirag_service=service)
+    stub_chat_history["history"].append({"role": "assistant", "content": "persisted"})
     async with app.test_client() as client:
         resp = await client.post(
             "/chat?hirag&stream=events",
@@ -180,11 +208,21 @@ async def test_chat_endpoint_hirag_mode_includes_retrieval_metadata():
         call = service.calls[0]
         assert call["mode"] == "hi"
         assert call["session_id"] == "abc123"
-        assert call["history"] == [{"role": "assistant", "content": "prev"}]
+        assert call["history"] == [
+            {"role": "assistant", "content": "persisted"},
+            {"role": "assistant", "content": "prev"},
+        ]
+        append_calls = stub_chat_history["calls"]["append"]
+        assert append_calls[0]["role"] == "user"
+        assert append_calls[0]["content"] == "hello world"
+        assert append_calls[0]["mode"] == "hi"
+        assert append_calls[1]["role"] == "assistant"
+        assert append_calls[1]["content"] == "helloworld"
+        assert append_calls[1]["mode"] == "hi"
 
 
 @pytest.mark.asyncio
-async def test_chat_endpoint_rag_mode_uses_cookie_session_id():
+async def test_chat_endpoint_rag_mode_uses_cookie_session_id(stub_chat_history):
     bot = DummyChatBot()
     service = StubHiRAGService()
     app = create_app(chatbot=bot, hirag_service=service)
@@ -202,17 +240,29 @@ async def test_chat_endpoint_rag_mode_uses_cookie_session_id():
         assert call["session_id"] == "cookie-session"
         events = [json.loads(line) for line in payload.splitlines() if line]
         assert events[-1]["data"]["mode"] == "naive"
+        append_calls = stub_chat_history["calls"]["append"]
+        assert append_calls[0]["mode"] == "naive"
+        assert append_calls[1]["mode"] == "naive"
 
 
 @pytest.mark.asyncio
-async def test_chat_endpoint_llm_only_skips_hirag_service():
+async def test_chat_endpoint_llm_only_skips_hirag_service(stub_chat_history):
     bot = DummyChatBot()
     service = StubHiRAGService()
     app = create_app(chatbot=bot, hirag_service=service)
     async with app.test_client() as client:
-        resp = await client.post("/chat?stream=events", json={"message": "hello"})
+        resp = await client.post(
+            "/chat?stream=events",
+            json={"message": "hello"},
+            headers={"Session-Id": "llm-session"},
+        )
         payload = await resp.get_data(as_text=True)
         assert resp.status_code == 200
         assert not service.calls
         events = [json.loads(line) for line in payload.splitlines() if line]
         assert all(evt.get("event") != "retrieval_metadata" for evt in events)
+        append_calls = stub_chat_history["calls"]["append"]
+        assert len(append_calls) == 2
+        assert {call["mode"] for call in append_calls} == {"llm"}
+        assert append_calls[0]["content"] == "hello"
+        assert append_calls[1]["content"] == "hello"

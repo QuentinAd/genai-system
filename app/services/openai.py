@@ -1,13 +1,28 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import httpx
-from langchain.schema import HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from .base import ChatBotBase
 from app.settings import settings
+
+
+def _normalise_history_entry(
+    entry: Mapping[str, Any] | Sequence[Any] | str,
+) -> tuple[str, str]:
+    if isinstance(entry, Mapping):
+        role = str(entry.get("role", "user")).strip().lower() or "user"
+        content = str(entry.get("content", "")).strip()
+        return role, content
+    if isinstance(entry, Sequence) and not isinstance(entry, (str, bytes)):
+        role = str(entry[0] if entry else "user").strip().lower() or "user"
+        content = str(entry[1] if len(entry) > 1 else "").strip()
+        return role, content
+    return "user", str(entry).strip()
 
 
 class OpenAIChatBot(ChatBotBase):
@@ -32,5 +47,23 @@ class OpenAIChatBot(ChatBotBase):
         )
         super().__init__(model_name, temperature, client, llm=llm)
 
-    def build_request(self, message: str) -> list[HumanMessage]:
-        return [HumanMessage(content=message)]
+    def build_request(
+        self,
+        message: str,
+        *,
+        history: Sequence[Mapping[str, Any] | Sequence[Any] | str] | None = None,
+    ) -> list[BaseMessage]:
+        messages: list[BaseMessage] = []
+        for entry in history or []:
+            role, content = _normalise_history_entry(entry)
+            if not content:
+                continue
+            if role == "assistant":
+                message_cls: type[BaseMessage] = AIMessage
+            elif role == "system":
+                message_cls = SystemMessage
+            else:
+                message_cls = HumanMessage
+            messages.append(message_cls(content=content))
+        messages.append(HumanMessage(content=message))
+        return messages
