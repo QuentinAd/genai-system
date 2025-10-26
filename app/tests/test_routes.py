@@ -374,8 +374,13 @@ async def test_chat_endpoint_passes_context_to_chatbot(stub_chat_history):
         """Bot that tracks the history it receives."""
 
         def __init__(self):
-            super().__init__("tracker")
+            super().__init__("tracker", temperature=0.0)
             self.received_history = None
+
+        async def stream_chat(self, message, *, config=None, history=None):
+            """Minimal stream_chat implementation."""
+            self.received_history = history
+            yield "response"
 
         async def stream_events(self, message, *, config=None, include_events=None, history=None):
             self.received_history = history
