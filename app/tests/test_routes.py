@@ -364,3 +364,41 @@ async def test_clear_chat_history_endpoint(stub_chat_history):
 
         resp_missing = await client.delete("/chat_history/abc")
         assert resp_missing.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_chat_endpoint_passes_context_to_chatbot(stub_chat_history):
+    """Test that HiRAG context is passed to the chatbot as a system message."""
+
+    class ContextTrackingBot(ChatBotBase):
+        """Bot that tracks the history it receives."""
+
+        def __init__(self):
+            super().__init__("tracker")
+            self.received_history = None
+
+        async def stream_events(self, message, *, config=None, include_events=None, history=None):
+            self.received_history = history
+            # Yield a simple token
+            yield "response"
+
+    bot = ContextTrackingBot()
+    service = StubHiRAGService()
+    app = create_app(chatbot=bot, hirag_service=service)
+
+    async with app.test_client() as client:
+        resp = await client.post(
+            "/chat?hirag&stream=events",
+            json={"message": "test question"},
+            headers={"Session-Id": "session-1"},
+        )
+        assert resp.status_code == 200
+
+        # Verify the bot received history with context
+        assert bot.received_history is not None
+        # First message should be system message with context
+        assert len(bot.received_history) >= 1
+        first_message = bot.received_history[0]
+        assert first_message["role"] == "system"
+        assert "Retrieved Context:" in first_message["content"]
+        assert "retrieved context" in first_message["content"]
