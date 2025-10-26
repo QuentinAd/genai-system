@@ -267,4 +267,168 @@ class HiRAGService:
         return "\n".join(lines)
 
 
-__all__ = ["HiRAGService"]
+class HiRAGChatBot:
+    """Chatbot that uses HiRAG service for context-aware responses via LangChain."""
+
+    def __init__(
+        self,
+        hirag_service: HiRAGService,
+        mode: str = "hi",
+        **openai_kwargs: Any,
+    ) -> None:
+        """Initialize HiRAGChatBot with a HiRAG service instance.
+
+        Args:
+            hirag_service: The HiRAG service to use for retrieval
+            mode: HiRAG mode ('hi' for hierarchical, 'naive' for naive)
+            **openai_kwargs: Additional kwargs passed to OpenAIChatBot
+        """
+        from .openai import OpenAIChatBot
+
+        self.hirag_service = hirag_service
+        self.mode = mode
+        self._openai_bot = OpenAIChatBot(**openai_kwargs)
+        # Expose common ChatBotBase attributes
+        self.model_name = self._openai_bot.model_name
+        self.temperature = self._openai_bot.temperature
+        self.client = self._openai_bot.client
+        self.llm = self._openai_bot.llm
+
+    def build_request(
+        self,
+        message: str,
+        *,
+        history: Sequence[Mapping[str, Any] | Sequence[Any] | str] | None = None,
+        context: str | None = None,
+    ) -> Any:
+        """Build request with optional context prepended.
+
+        Args:
+            message: User message
+            history: Conversation history
+            context: Optional retrieved context to prepend
+
+        Returns:
+            List of LangChain messages
+        """
+        # If we have context, prepend it to the message as a system message or augmented user message
+        augmented_history = list(history or [])
+        if context:
+            # Add context as a system message before the conversation
+            augmented_history.insert(0, {"role": "system", "content": f"Context:\n{context}"})
+
+        return self._openai_bot.build_request(message, history=augmented_history)
+
+    async def stream_chat(
+        self,
+        message: str,
+        *,
+        config: Any | None = None,
+        history: Sequence[Mapping[str, Any] | Sequence[str] | str] | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """Stream chat response with HiRAG context retrieval.
+
+        Args:
+            message: User message
+            config: Optional runnable config
+            history: Conversation history
+
+        Yields:
+            Text chunks from the LLM response
+        """
+        # First, retrieve context using HiRAG service
+        # We need a session_id - we'll use empty string if not available in history
+        session_id = ""
+        if history:
+            for entry in history:
+                if isinstance(entry, Mapping) and "session_id" in entry:
+                    session_id = str(entry["session_id"])
+                    break
+
+        # Get context only (not the full answer from HiRAG)
+        from dataclasses import replace
+
+        query_param_cls = self.hirag_service._query_param_cls
+        resolved_mode = self.hirag_service._normalize_mode(self.mode)
+        context_param = query_param_cls(mode=resolved_mode, only_need_context=True)
+
+        # Retrieve context asynchronously
+        context = await self.hirag_service._hirag.aquery(message, context_param)
+
+        # Build request with context
+        request = self.build_request(message, history=history, context=context)
+
+        # Stream from the underlying OpenAI bot using the augmented request
+        call_kwargs = {"config": config} if config is not None else {}
+
+        stream_fn = getattr(self.llm, "astream", None)
+        if callable(stream_fn):
+            async for chunk in stream_fn(request, **call_kwargs):
+                from .base import _chunk_to_text
+
+                text = _chunk_to_text(chunk)
+                if text:
+                    yield text
+        else:
+            # Fallback to parent's stream_chat if needed
+            async for chunk in self._openai_bot.stream_chat(message, config=config, history=history):
+                yield chunk
+
+    async def stream_events(
+        self,
+        message: str,
+        *,
+        config: Any | None = None,
+        include_events: Sequence[str] | None = None,
+        history: Sequence[Mapping[str, Any] | Sequence[str] | str] | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """Stream events with HiRAG context retrieval.
+
+        Delegates to the underlying OpenAI bot's stream_events after retrieving context.
+        """
+        # Retrieve context first
+        session_id = ""
+        if history:
+            for entry in history:
+                if isinstance(entry, Mapping) and "session_id" in entry:
+                    session_id = str(entry["session_id"])
+                    break
+
+        from dataclasses import replace
+
+        query_param_cls = self.hirag_service._query_param_cls
+        resolved_mode = self.hirag_service._normalize_mode(self.mode)
+        context_param = query_param_cls(mode=resolved_mode, only_need_context=True)
+
+        context = await self.hirag_service._hirag.aquery(message, context_param)
+
+        # Build augmented history with context
+        augmented_history = list(history or [])
+        if context:
+            augmented_history.insert(0, {"role": "system", "content": f"Context:\n{context}"})
+
+        # Delegate to OpenAI bot's stream_events
+        async for event in self._openai_bot.stream_events(
+            message,
+            config=config,
+            include_events=include_events,
+            history=augmented_history,
+        ):
+            yield event
+
+    async def aclose(self) -> None:
+        """Close the underlying client."""
+        await self._openai_bot.aclose()
+
+    def model_info(self) -> dict[str, Any]:
+        """Return model configuration info."""
+        info = self._openai_bot.model_info()
+        info["type"] = self.__class__.__name__
+        info["hirag_mode"] = self.mode
+        return info
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(model_name={self.model_name!r}, mode={self.mode!r})"
+
+
+__all__ = ["HiRAGService", "HiRAGChatBot"]

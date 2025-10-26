@@ -9,6 +9,7 @@ __all__ = [
     "ChatBotBase",
     "DummyChatBot",
     "HiRAGService",
+    "HiRAGChatBot",
     "OpenAIChatBot",
     "RAGChatBot",
     "load_retriever_tool",
@@ -26,6 +27,7 @@ _ATTR_MODULE_MAP = {
     "ChatBotBase": "app.services.base",
     "DummyChatBot": "app.services.base",
     "HiRAGService": "app.services.hirag",
+    "HiRAGChatBot": "app.services.hirag",
     "OpenAIChatBot": "app.services.openai",
     "RAGChatBot": "app.services.rag",
     "load_retriever_tool": "app.services.rag",
@@ -63,6 +65,6 @@ if TYPE_CHECKING:  # pragma: no cover - import for type checkers only
         get_history,
         list_sessions,
     )
-    from .hirag import HiRAGService
+    from .hirag import HiRAGService, HiRAGChatBot
     from .openai import OpenAIChatBot
     from .rag import RAGChatBot, load_retriever_tool

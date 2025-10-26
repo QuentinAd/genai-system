@@ -169,6 +169,16 @@ def create_chat_blueprint(
 
         llm_history = _format_history_entries(merged_history)
 
+        # If we have retrieval context, prepend it to the history as a system message
+        if retrieval_metadata and retrieval_metadata.get("context"):
+            context_text = retrieval_metadata["context"]
+            context_message = {
+                "role": "system",
+                "content": f"Retrieved Context:\n{context_text}",
+            }
+            # Insert context at the beginning
+            llm_history.insert(0, context_message)
+
         allowed_events: list[str] | None
         if include_events:
             allowed_set = set(include_events)
