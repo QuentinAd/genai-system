@@ -222,19 +222,3 @@ resource "aws_vpc_endpoint" "secretsmanager" {
   subnet_ids        = local.vpce_subnet_ids
   security_group_ids = [aws_security_group.vpce_interface.id]
 }
-
-resource "aws_vpc_endpoint" "sqs" {
-  vpc_id            = aws_vpc.main.id
-  service_name      = "com.amazonaws.${var.aws_region}.sqs"
-  vpc_endpoint_type = "Interface"
-  subnet_ids        = local.vpce_subnet_ids
-  security_group_ids = [aws_security_group.vpce_interface.id]
-}
-
-resource "aws_vpc_endpoint" "sts" {
-  vpc_id            = aws_vpc.main.id
-  service_name      = "com.amazonaws.${var.aws_region}.sts"
-  vpc_endpoint_type = "Interface"
-  subnet_ids        = local.vpce_subnet_ids
-  security_group_ids = [aws_security_group.vpce_interface.id]
-}
