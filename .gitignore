@@ -2,6 +2,7 @@
 .env
 data
 hirag_cache
+app/data
 
 # python
 .venv
