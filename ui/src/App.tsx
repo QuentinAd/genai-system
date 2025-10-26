@@ -265,6 +265,10 @@ function App() {
   const conversationSentinelRef = useRef<HTMLDivElement | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => (typeof window === "undefined" ? true : window.innerWidth >= 768));
   const [activeSessionId, setActiveSessionId] = useState<string>(() => loadStoredSession());
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const [headerHeight, setHeaderHeight] = useState(64);
+  const chatContainerRef = useRef<HTMLDivElement | null>(null);
+  const [sidebarMetrics, setSidebarMetrics] = useState<{ width: number; left: number }>({ width: 304, left: 16 });
   const activeConversation = useDerivedActiveConversation(conversations, activeSessionId);
 
   useEffect(() => {
@@ -326,6 +330,55 @@ function App() {
       /* ignore */
     }
   }, [activeSessionId]);
+
+  useEffect(() => {
+    const updateHeaderMetrics = () => {
+      const rect = headerRef.current?.getBoundingClientRect();
+      if (!rect) {
+        setHeaderHeight((prev) => (prev === 64 ? 64 : prev));
+        return;
+      }
+      const nextHeight = rect.height || 64;
+      setHeaderHeight(nextHeight);
+    };
+    updateHeaderMetrics();
+    window.addEventListener("resize", updateHeaderMetrics);
+    return () => window.removeEventListener("resize", updateHeaderMetrics);
+  }, []);
+
+  const updateSidebarPosition = useCallback(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
+    const desiredWidth = Math.min(304, Math.max(240, viewportWidth * 0.25));
+    const gap = 16;
+    const candidateLeft = rect.left - desiredWidth - gap;
+    const resolvedLeft = candidateLeft > gap ? candidateLeft : gap;
+    setSidebarMetrics({ width: desiredWidth, left: resolvedLeft });
+  }, []);
+
+  useEffect(() => {
+    updateSidebarPosition();
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", updateSidebarPosition);
+    }
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => updateSidebarPosition()) : null;
+    const container = chatContainerRef.current;
+    if (observer && container) observer.observe(container);
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("resize", updateSidebarPosition);
+      }
+      if (observer) {
+        observer.disconnect();
+      }
+    };
+  }, [updateSidebarPosition]);
+
+  useEffect(() => {
+    if (sidebarOpen) updateSidebarPosition();
+  }, [sidebarOpen, updateSidebarPosition]);
 
   const touchConversation = useCallback(
     (sessionId: string, preview: string, conversationMode: RetrievalMode | null, updatedAt?: number) => {
@@ -771,7 +824,10 @@ function App() {
 
   return (
     <div className="min-h-dvh bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 flex flex-col">
-      <header className="sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 px-4 py-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur">
+      <header
+        ref={headerRef}
+        className="sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 px-4 py-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur"
+      >
         <div className="mx-auto w-full max-w-6xl flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
@@ -780,6 +836,7 @@ function App() {
               onClick={() => setSidebarOpen((open) => !open)}
               aria-pressed={sidebarOpen}
               aria-label="Toggle conversations panel"
+              aria-expanded={sidebarOpen}
             >
               {sidebarOpen ? "Hide" : "Show"}
             </button>
@@ -818,199 +875,195 @@ function App() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden">
-        <div className="mx-auto w-full max-w-6xl h-full flex">
-          {sidebarOpen ? (
-            <aside
-              role="complementary"
-              aria-label="Conversations"
-              className="hidden sm:flex w-72 flex-col border-r border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/50"
-            >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-                <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300">Conversations</h2>
-                <button
-                  type="button"
-                  className="rounded-md border px-2 py-1 text-xs border-slate-300 dark:border-slate-700"
-                  onClick={handleNewConversation}
-                >
-                  New chat
-                </button>
-              </div>
-              <div ref={conversationListRef} className="flex-1 overflow-y-auto">
-                {conversations.length === 0 ? (
-                  <p className="px-4 py-6 text-sm text-slate-500">No conversations yet.</p>
-                ) : null}
-                <div className="px-2 py-2 space-y-1">
-                  {conversations.map((conv) => {
-                    const active = conv.sessionId === activeSessionId;
-                    return (
-                      <button
-                        key={conv.sessionId}
-                        type="button"
-                        onClick={() => handleSelectConversation(conv.sessionId)}
-                        className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                          active
-                            ? "bg-brand-600 text-white shadow"
-                            : "bg-white dark:bg-slate-900/60 text-slate-700 dark:text-slate-200 border border-transparent hover:border-brand-500"
-                        }`}
-                        aria-current={active ? "true" : undefined}
-                        aria-label={`${conv.preview} • ${formatDisplayTime(conv.updatedAt)}`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="font-medium line-clamp-1">{conv.preview}</span>
-                          <span className="text-xs opacity-80">{formatDisplayTime(conv.updatedAt)}</span>
-                        </div>
-                        <div className="mt-1 text-xs opacity-80 uppercase tracking-wide">
-                          {conv.mode === "hirag" ? "HiRAG" : conv.mode === "rag" ? "RAG" : "LLM"}
-                        </div>
-                      </button>
-                    );
-                  })}
+      <main className="relative flex-1 overflow-hidden">
+        <div ref={chatContainerRef} className="relative mx-auto w-full max-w-3xl h-full flex flex-col">
+          <div className="flex items-center justify-between px-4 pt-4">
+            <div>
+              {activeConversation ? (
+                <div className="text-xs uppercase text-slate-500 dark:text-slate-400">
+                  Viewing session {activeConversation.sessionId}
                 </div>
-                <div ref={conversationSentinelRef} className="h-4" />
-              </div>
-            </aside>
-          ) : null}
-
-          <div className="flex-1 flex flex-col">
-            <div className="flex items-center justify-between px-4 pt-4">
-              <div>
-                {activeConversation ? (
-                  <div className="text-xs uppercase text-slate-500 dark:text-slate-400">
-                    Viewing session {activeConversation.sessionId}
-                  </div>
+              ) : (
+                <div className="text-xs uppercase text-slate-500 dark:text-slate-400">Draft conversation</div>
+              )}
+            </div>
+            {activeConversation ? (
+              <button
+                type="button"
+                className="rounded-md border border-red-600 text-red-600 px-2 py-1 text-xs"
+                onClick={handleClearHistory}
+              >
+                Clear history
+              </button>
+            ) : null}
+          </div>
+          <div
+            ref={messagesContainerRef}
+            data-testid="message-list"
+            className="flex-1 overflow-y-auto px-4 py-6 space-y-3"
+          >
+            {messages.map((m, i) => (
+              <div key={`${i}-${m.timestamp}`} className={m.role === "user" ? "text-right" : "text-left"}>
+                {m.role === "user" ? (
+                  <span className="inline-block rounded-2xl px-3 py-2 max-w-[80%] break-words shadow-sm bg-brand-600 text-white">
+                    {m.content}
+                  </span>
                 ) : (
-                  <div className="text-xs uppercase text-slate-500 dark:text-slate-400">
-                    Draft conversation
+                  <div className="inline-block rounded-2xl px-3 py-2 max-w-[80%] break-words shadow-sm bg-slate-100 text-slate-900 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-100 dark:ring-slate-800 prose prose-slate dark:prose-invert prose-sm prose-pre:bg-slate-900 prose-pre:text-slate-100">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkBreaks]}
+                      rehypePlugins={[rehypeHighlight]}
+                      components={{ code: CodeBlock }}
+                    >
+                      {m.content}
+                    </ReactMarkdown>
+                    {m.mode ? (
+                      <span className="mt-3 inline-flex items-center rounded-full border border-brand-600/60 bg-brand-600/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-300">
+                        {m.mode === "hirag" ? "HiRAG" : "RAG"} mode
+                      </span>
+                    ) : null}
+                    {m.events?.length ? (
+                      <details className="mt-3 space-y-2">
+                        <summary className="text-xs font-medium text-slate-500 cursor-pointer">
+                          Events ({m.events.length})
+                        </summary>
+                        <ul className="space-y-2 text-xs not-prose">
+                          {m.events.map((evt) => (
+                            <li
+                              key={`${evt.at}-${evt.name}`}
+                              className="rounded-md border border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 p-2"
+                            >
+                              <div className="font-semibold text-slate-600 dark:text-slate-300">{evt.name}</div>
+                              <pre className="mt-1 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200">
+                                {formatEventData(evt.data)}
+                              </pre>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
                   </div>
                 )}
               </div>
-              {activeConversation ? (
-                <button
-                  type="button"
-                  className="rounded-md border border-red-600 text-red-600 px-2 py-1 text-xs"
-                  onClick={handleClearHistory}
-                >
-                  Clear history
-                </button>
-              ) : null}
-            </div>
-            <div
-              ref={messagesContainerRef}
-              data-testid="message-list"
-              className="flex-1 overflow-y-auto px-4 py-6 space-y-3"
-            >
-              {messages.map((m, i) => (
-                <div
-                  key={`${i}-${m.timestamp}`}
-                  className={m.role === "user" ? "text-right" : "text-left"}
-                >
-                  {m.role === "user" ? (
-                    <span className="inline-block rounded-2xl px-3 py-2 max-w-[80%] break-words shadow-sm bg-brand-600 text-white">
-                      {m.content}
-                    </span>
-                  ) : (
-                    <div className="inline-block rounded-2xl px-3 py-2 max-w-[80%] break-words shadow-sm bg-slate-100 text-slate-900 ring-1 ring-slate-200 dark:bg-slate-800/80 dark:text-slate-100 dark:ring-slate-800 prose prose-slate dark:prose-invert prose-sm prose-pre:bg-slate-900 prose-pre:text-slate-100">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm, remarkBreaks]}
-                        rehypePlugins={[rehypeHighlight]}
-                        components={{ code: CodeBlock }}
-                      >
-                        {m.content}
-                      </ReactMarkdown>
-                      {m.mode ? (
-                        <span className="mt-3 inline-flex items-center rounded-full border border-brand-600/60 bg-brand-600/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-300">
-                          {m.mode === "hirag" ? "HiRAG" : "RAG"} mode
-                        </span>
-                      ) : null}
-                      {m.events?.length ? (
-                        <details className="mt-3 space-y-2">
-                          <summary className="text-xs font-medium text-slate-500 cursor-pointer">
-                            Events ({m.events.length})
-                          </summary>
-                          <ul className="space-y-2 text-xs not-prose">
-                            {m.events.map((evt) => (
-                              <li
-                                key={`${evt.at}-${evt.name}`}
-                                className="rounded-md border border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 p-2"
-                              >
-                                <div className="font-semibold text-slate-600 dark:text-slate-300">
-                                  {evt.name}
-                                </div>
-                                <pre className="mt-1 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200">
-                                  {formatEventData(evt.data)}
-                                </pre>
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              ))}
-              <div ref={endRef} />
-            </div>
+            ))}
+            <div ref={endRef} />
+          </div>
 
-            <footer className="sticky bottom-0 border-t border-slate-200 dark:border-slate-800 px-4 py-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur">
-              <div className="w-full flex gap-2 items-end">
-                <div className="flex-1 flex flex-col gap-2">
-                  <textarea
-                    className="flex-1 rounded-md bg-white border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-brand-500 placeholder:text-slate-500 dark:bg-slate-900 dark:border-slate-800 resize-none"
-                    value={input}
-                    rows={1}
-                    onInput={(e) => {
-                      const el = e.currentTarget;
-                      el.style.height = "auto";
-                      el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
-                    }}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        void send();
-                      }
-                    }}
-                    placeholder="Type your message..."
-                    disabled={loading}
-                  />
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                    <span className="font-medium text-slate-600 dark:text-slate-300">Retrieval mode</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className={toggleClass("hirag")}
-                        aria-label="Enable HiRAG retrieval"
-                        aria-pressed={mode === "hirag"}
-                        title="HiRAG: hierarchical retrieval for richer answers"
-                        onClick={() => setMode((prev) => (prev === "hirag" ? null : "hirag"))}
-                      >
-                        HiRAG
-                      </button>
-                      <button
-                        type="button"
-                        className={toggleClass("rag")}
-                        aria-label="Enable RAG retrieval"
-                        aria-pressed={mode === "rag"}
-                        title="RAG: standard retrieval-augmented responses"
-                        onClick={() => setMode((prev) => (prev === "rag" ? null : "rag"))}
-                      >
-                        RAG
-                      </button>
-                    </div>
+          <footer className="sticky bottom-0 border-t border-slate-200 dark:border-slate-800 px-4 py-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur">
+            <div className="w-full flex gap-2 items-end">
+              <div className="flex-1 flex flex-col gap-2">
+                <textarea
+                  className="flex-1 rounded-md bg-white border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-brand-500 placeholder:text-slate-500 dark:bg-slate-900 dark:border-slate-800 resize-none"
+                  value={input}
+                  rows={1}
+                  onInput={(e) => {
+                    const el = e.currentTarget;
+                    el.style.height = "auto";
+                    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+                  }}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void send();
+                    }
+                  }}
+                  placeholder="Type your message..."
+                  disabled={loading}
+                />
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="font-medium text-slate-600 dark:text-slate-300">Retrieval mode</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className={toggleClass("hirag")}
+                      aria-label="Enable HiRAG retrieval"
+                      aria-pressed={mode === "hirag"}
+                      title="HiRAG: hierarchical retrieval for richer answers"
+                      onClick={() => setMode((prev) => (prev === "hirag" ? null : "hirag"))}
+                    >
+                      HiRAG
+                    </button>
+                    <button
+                      type="button"
+                      className={toggleClass("rag")}
+                      aria-label="Enable RAG retrieval"
+                      aria-pressed={mode === "rag"}
+                      title="RAG: standard retrieval-augmented responses"
+                      onClick={() => setMode((prev) => (prev === "rag" ? null : "rag"))}
+                    >
+                      RAG
+                    </button>
                   </div>
                 </div>
-                <button
-                  className="rounded-md bg-brand-600 hover:bg-brand-500 disabled:opacity-50 px-4 py-2 text-white"
-                  onClick={() => void send()}
-                  disabled={loading || !input.trim()}
-                >
-                  Send
-                </button>
               </div>
-            </footer>
-          </div>
+              <button
+                className="rounded-md bg-brand-600 hover:bg-brand-500 disabled:opacity-50 px-4 py-2 text-white"
+                onClick={() => void send()}
+                disabled={loading || !input.trim()}
+              >
+                Send
+              </button>
+            </div>
+          </footer>
         </div>
+        {sidebarOpen ? (
+          <aside
+            role="complementary"
+            aria-label="Conversations"
+            className="fixed z-40 flex flex-col border-r border-slate-200 bg-white shadow-lg dark:border-slate-800 dark:bg-slate-900/95"
+            style={{
+              top: headerHeight,
+              left: sidebarMetrics.left,
+              width: sidebarMetrics.width,
+              height: `calc(100vh - ${headerHeight}px)`,
+            }}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+              <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300">Conversations</h2>
+              <button
+                type="button"
+                className="rounded-md border px-2 py-1 text-xs border-slate-300 dark:border-slate-700"
+                onClick={handleNewConversation}
+              >
+                New chat
+              </button>
+            </div>
+            <div ref={conversationListRef} className="flex-1 overflow-y-auto">
+              {conversations.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-slate-500">No conversations yet.</p>
+              ) : null}
+              <div className="px-2 py-2 space-y-1">
+                {conversations.map((conv) => {
+                  const active = conv.sessionId === activeSessionId;
+                  return (
+                    <button
+                      key={conv.sessionId}
+                      type="button"
+                      onClick={() => handleSelectConversation(conv.sessionId)}
+                      className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                        active
+                          ? "bg-brand-600 text-white shadow"
+                          : "bg-white dark:bg-slate-900/60 text-slate-700 dark:text-slate-200 border border-transparent hover:border-brand-500"
+                      }`}
+                      aria-current={active ? "true" : undefined}
+                      aria-label={`${conv.preview} • ${formatDisplayTime(conv.updatedAt)}`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium line-clamp-1">{conv.preview}</span>
+                        <span className="text-xs opacity-80">{formatDisplayTime(conv.updatedAt)}</span>
+                      </div>
+                      <div className="mt-1 text-xs opacity-80 uppercase tracking-wide">
+                        {conv.mode === "hirag" ? "HiRAG" : conv.mode === "rag" ? "RAG" : "LLM"}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div ref={conversationSentinelRef} className="h-4" />
+            </div>
+          </aside>
+        ) : null}
       </main>
     </div>
   );
