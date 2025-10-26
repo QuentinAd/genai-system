@@ -168,7 +168,7 @@ resource "aws_security_group" "vpce_interface" {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = [aws_vpc.main.cidr_block]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags = {
@@ -186,6 +186,38 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
 resource "aws_vpc_endpoint" "logs" {
   vpc_id            = aws_vpc.main.id
   service_name      = "com.amazonaws.${var.aws_region}.logs"
+  vpc_endpoint_type = "Interface"
+  subnet_ids        = local.vpce_subnet_ids
+  security_group_ids = [aws_security_group.vpce_interface.id]
+}
+
+resource "aws_vpc_endpoint" "sqs" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${var.aws_region}.sqs"
+  vpc_endpoint_type = "Interface"
+  subnet_ids        = local.vpce_subnet_ids
+  security_group_ids = [aws_security_group.vpce_interface.id]
+}
+
+resource "aws_vpc_endpoint" "sts" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${var.aws_region}.sts"
+  vpc_endpoint_type = "Interface"
+  subnet_ids        = local.vpce_subnet_ids
+  security_group_ids = [aws_security_group.vpce_interface.id]
+}
+
+resource "aws_vpc_endpoint" "kms" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${var.aws_region}.kms"
+  vpc_endpoint_type = "Interface"
+  subnet_ids        = local.vpce_subnet_ids
+  security_group_ids = [aws_security_group.vpce_interface.id]
+}
+
+resource "aws_vpc_endpoint" "secretsmanager" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${var.aws_region}.secretsmanager"
   vpc_endpoint_type = "Interface"
   subnet_ids        = local.vpce_subnet_ids
   security_group_ids = [aws_security_group.vpce_interface.id]

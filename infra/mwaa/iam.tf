@@ -34,6 +34,7 @@ data "aws_iam_policy_document" "mwaa_execution" {
       "s3:ListBucket",
       "s3:GetBucketLocation",
       "s3:GetBucketAcl",
+      "s3:GetEncryptionConfiguration",
       "s3:PutObject"
     ]
     resources = [
@@ -67,11 +68,14 @@ data "aws_iam_policy_document" "mwaa_execution" {
       "logs:DescribeLogGroups",
       "logs:DescribeLogStreams",
       "logs:PutLogEvents",
-      "logs:GetLogEvents"
+      "logs:GetLogEvents",
+      "logs:TagLogGroup",
+      "logs:PutRetentionPolicy",
+      "logs:DeleteLogGroup"
     ]
     resources = [
-      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:airflow-*",
-      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:airflow-*:*"
+      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/mwaa/*",
+      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/mwaa/*:*"
     ]
   }
 
@@ -86,7 +90,7 @@ data "aws_iam_policy_document" "mwaa_execution" {
       "sqs:SendMessage"
     ]
     resources = [
-      "arn:aws:sqs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:airflow-celery-*"
+      "arn:aws:sqs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:*"
     ]
   }
 
@@ -115,8 +119,20 @@ data "aws_iam_policy_document" "mwaa_execution" {
   statement {
     effect = "Allow"
     actions = [
+      "cloudwatch:GetMetricData",
+      "cloudwatch:GetMetricStatistics",
+      "cloudwatch:ListMetrics"
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
       "kms:Decrypt",
-      "kms:GenerateDataKey"
+      "kms:GenerateDataKey",
+      "kms:CreateGrant",
+      "kms:DescribeKey"
     ]
     resources = ["*"]
     condition {
