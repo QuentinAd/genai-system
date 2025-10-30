@@ -101,11 +101,74 @@ jobs:
           aws s3 sync data-pipeline/dags s3://${{ secrets.MWAA_DAGS_BUCKET }}/dags \
             --delete
 
+  deploy-backend:
+    name: Deploy Backend Lambda
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    env:
+      BACKEND_LAMBDA_FUNCTION_NAME: ${{ secrets.BACKEND_LAMBDA_FUNCTION_NAME }}
+      BACKEND_LAMBDA_ALIAS: ${{ secrets.BACKEND_LAMBDA_ALIAS }}
+    outputs:
+      function-url: ${{ steps.function_url.outputs.function_url }}
+      function-version: ${{ steps.publish.outputs.version }}
+    steps:
+      - name: Validate backend deployment configuration
+        run: |
+          if [ -z "$BACKEND_LAMBDA_FUNCTION_NAME" ]; then
+            echo "Missing BACKEND_LAMBDA_FUNCTION_NAME secret for backend deployment." >&2
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-backend-cd
+
+      - name: Update Lambda function image
+        env:
+          BACKEND_IMAGE_URI: ${{ needs.build-and-push.outputs.backend-image }}
+        run: |
+          aws lambda update-function-code \
+            --function-name "$BACKEND_LAMBDA_FUNCTION_NAME" \
+            --image-uri "$BACKEND_IMAGE_URI"
+          aws lambda wait function-updated --function-name "$BACKEND_LAMBDA_FUNCTION_NAME"
+
+      - name: Publish new Lambda version
+        id: publish
+        run: |
+          VERSION=$(aws lambda publish-version \
+            --function-name "$BACKEND_LAMBDA_FUNCTION_NAME" \
+            --query 'Version' \
+            --output text)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Update Lambda alias
+        if: env.BACKEND_LAMBDA_ALIAS != ''
+        run: |
+          aws lambda update-alias \
+            --function-name "$BACKEND_LAMBDA_FUNCTION_NAME" \
+            --name "$BACKEND_LAMBDA_ALIAS" \
+            --function-version "${{ steps.publish.outputs.version }}"
+
+      - name: Fetch Function URL
+        id: function_url
+        run: |
+          URL=$(aws lambda get-function-url-config \
+            --function-name "$BACKEND_LAMBDA_FUNCTION_NAME" \
+            --query 'FunctionUrl' \
+            --output text)
+          echo "function_url=$URL" >> "$GITHUB_OUTPUT"
+
   deploy-ui:
     name: Deploy UI to CloudFront
     runs-on: ubuntu-latest
-    needs: [build-and-push, deploy-dags]
+    needs: [build-and-push, deploy-dags, deploy-backend]
     if: github.ref == 'refs/heads/main'
+    env:
+      BACKEND_FUNCTION_URL: ${{ needs.deploy-backend.outputs.function-url }}
     steps:
       - uses: actions/checkout@v3
 
@@ -116,6 +179,8 @@ jobs:
 
       - name: Install dependencies and build UI
         working-directory: ui
+        env:
+          VITE_BACKEND_URL: ${{ env.BACKEND_FUNCTION_URL }}
         run: |
           npm ci
           npm run build
