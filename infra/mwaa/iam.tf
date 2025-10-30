@@ -138,12 +138,35 @@ data "aws_iam_policy_document" "mwaa_execution" {
     condition {
       test     = "StringEquals"
       variable = "kms:ViaService"
-      values   = ["airflow.${var.aws_region}.amazonaws.com"]
+      values   = [
+        "airflow.${var.aws_region}.amazonaws.com",
+        "secretsmanager.${var.aws_region}.amazonaws.com"
+      ]
     }
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DescribeSecret"
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    effect    = "Allow"
+    actions   = ["iam:PassRole"]
+    resources = [aws_iam_role.mwaa_exec.arn]
   }
 }
 
 resource "aws_iam_role_policy_attachment" "mwaa_execution" {
   role       = aws_iam_role.mwaa_exec.name
   policy_arn = aws_iam_policy.mwaa_execution.arn
+}
+
+resource "aws_iam_role_policy_attachment" "mwaa_managed" {
+  role       = aws_iam_role.mwaa_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonMWAAServiceRolePolicy"
 }

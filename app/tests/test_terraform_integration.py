@@ -131,6 +131,28 @@ def test_main_tf_has_dual_ecr_modules():
     assert 'ecr_repo     = "genai-app"' in content, "Backend module should use genai-app repo name"
 
 
+def test_mwaa_execution_role_permissions():
+    """Test that MWAA execution role includes managed policy and secret access."""
+    infra_dir = Path(__file__).parent.parent.parent / "infra"
+    iam_file = infra_dir / "mwaa" / "iam.tf"
+
+    with open(iam_file, "r") as f:
+        content = f.read()
+
+    assert (
+        "AmazonMWAAServiceRolePolicy" in content
+    ), "MWAA execution role should attach the Amazon managed service policy"
+
+    required_actions = [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret",
+        "iam:PassRole",
+    ]
+
+    for action in required_actions:
+        assert action in content, f"MWAA execution policy should grant {action}"
+
+
 def test_terraform_file_formatting():
     """Test basic Terraform file formatting and syntax."""
     infra_dir = Path(__file__).parent.parent.parent / "infra"
